@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1e2022">
   <script src="../assets/js/core/errors.js"></script>
   <script data-required src="../assets/js/core/preferences.js"></script>
@@ -15,7 +15,7 @@
 <body data-page="play">
   <main class="play-stage" aria-label="SECTOR-09 game">
     <div class="field">
-      <canvas id="game" width="800" height="600" tabindex="0" aria-label="Tactical stealth game. Move with WASD or arrow keys. Collect brass diamonds and avoid guards. Press P to pause."></canvas>
+      <canvas id="game" width="800" height="600" tabindex="0" aria-label="Tactical stealth game. Drag the left joystick on phones or use WASD or arrow keys. Collect brass diamonds and avoid guards. Tap Pause or press P to pause."></canvas>
       <div class="status" aria-label="Simulation telemetry">
         <div class="metric"><span>SCORE</span><strong id="score">0000</strong></div>
         <div class="metric"><span>BEST</span><strong id="high-score">0000</strong></div>
@@ -43,6 +43,17 @@
           <div id="diagnostic-status">DIAGNOSTICS OFF / AUDIO ON / ISSUES 0</div>
         </div>
       </details>
+      <div class="touch-ui" id="touch-controls" hidden aria-label="Touch game controls">
+        <div class="joystick" id="joystick" role="group" aria-label="Movement joystick. Drag in any direction to move.">
+          <span class="joystick-cross" aria-hidden="true"></span>
+          <span class="joystick-thumb" id="joystick-thumb" aria-hidden="true"></span>
+          <span class="joystick-label" aria-hidden="true">MOVE</span>
+        </div>
+        <div class="touch-actions">
+          <button id="touch-pause" type="button" aria-label="Pause game">Pause</button>
+          <button id="touch-mute" type="button" aria-label="Toggle all sound" aria-pressed="false">Sound on</button>
+        </div>
+      </div>
       <div class="overlay" id="overlay">
         <div class="terminal">
           <div class="small" id="overlay-tag">SIMULATION / STANDBY</div>
@@ -64,7 +75,9 @@
           <nav class="overlay-links" aria-label="Game menu">
             <a href="../index.html">Home</a><a href="settings.html">Settings</a><a href="sound.html">Sound</a><a href="exit.html">Exit</a>
           </nav>
-          <p class="small">WASD / ARROWS TO MOVE · P TO PAUSE</p>
+          <p class="small keyboard-hint">WASD / ARROWS TO MOVE · P TO PAUSE</p>
+          <p class="small touch-hint">DRAG THE LEFT JOYSTICK TO MOVE · TAP PAUSE TO STOP</p>
+          <p class="rotate-hint">Rotate your phone for a wider landscape view.</p>
         </div>
       </div>
     </div>
@@ -74,6 +87,7 @@
   <script data-required src="../assets/js/audio/site-audio.js"></script>
   <script data-required src="../assets/js/game/self-tests.js"></script>
   <script data-required src="../assets/js/game/game.js"></script>
+  <script data-required src="../assets/js/ui/touch-controls.js"></script>
   <script data-required src="../assets/js/core/bootstrap.js"></script>
 </body>
 </html>

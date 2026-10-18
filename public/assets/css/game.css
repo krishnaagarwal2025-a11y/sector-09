@@ -1,11 +1,11 @@
 :root { color-scheme:dark; font-family:'Segoe UI',Arial,sans-serif; color:var(--text); background:var(--field); }
 * { box-sizing:border-box; }
-body { margin:0; overflow:hidden; }
+body { margin:0; overflow:hidden; overscroll-behavior:none; }
 .play-stage,.field { width:100%; height:100dvh; min-height:0; }
 .field { position:relative; overflow:hidden; background:var(--field); }
 /* Canvas owns the entire viewport. Its 800x600 world stays fully visible and
    undistorted; spare aspect-ratio space uses the same matte field background. */
-canvas { position:absolute; inset:0; display:block; width:100%; height:100%; object-fit:contain; outline:none; }
+canvas { position:absolute; inset:0; display:block; width:100%; height:100%; object-fit:contain; outline:none; touch-action:none; }
 canvas:focus-visible { outline:1px solid #5c7a99; outline-offset:-2px; }
 .status { position:absolute; top:18px; left:18px; z-index:5; display:grid; grid-template-columns:repeat(3,minmax(72px,1fr)) minmax(116px,1.3fr); border:1px solid var(--border); background:var(--panel-overlay); pointer-events:none; }
 .metric { padding:10px 14px; border-right:1px solid var(--border); }
@@ -70,4 +70,53 @@ body.reduced-motion .overlay { animation:none; }
   .terminal { padding:16px 22px; }
   .terminal h1 { margin:10px 0; }
   .terminal .rule { margin:12px 0; }
+}
+.touch-hint,.rotate-hint { display:none; }
+.touch-ui { position:absolute; inset:0; z-index:10; pointer-events:none; }
+.joystick { position:absolute; left:max(24px,env(safe-area-inset-left)); bottom:max(24px,env(safe-area-inset-bottom)); width:128px; height:128px; border:1px solid var(--border-strong); border-radius:50%; background:var(--panel-overlay); pointer-events:auto; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+.joystick::before,.joystick::after { content:''; position:absolute; background:var(--border); }
+.joystick::before { width:1px; top:14px; bottom:14px; left:50%; }
+.joystick::after { height:1px; left:14px; right:14px; top:50%; }
+.joystick-thumb { position:absolute; left:50%; top:50%; z-index:1; width:46px; height:46px; border:1px solid #5c7a99; border-radius:50%; background:var(--raised); transform:translate(-50%,-50%) translate(var(--stick-x,0px),var(--stick-y,0px)); }
+.joystick-label { position:absolute; left:0; right:0; bottom:-19px; text-align:center; color:var(--muted); font-size:9px; letter-spacing:1px; }
+.touch-actions { position:absolute; right:max(18px,env(safe-area-inset-right)); bottom:max(24px,env(safe-area-inset-bottom)); display:grid; gap:10px; pointer-events:auto; }
+.touch-actions button { min-width:80px; min-height:48px; padding:12px; background:var(--panel-overlay); font-size:12px; touch-action:manipulation; }
+body[data-touch="true"] button,body[data-touch="true"] .game-actions a,body[data-touch="true"] select { min-height:44px; touch-action:manipulation; }
+body[data-touch="true"] .controls-panel,body[data-touch="true"] .keyboard-hint,body[data-touch="true"] #pause,body[data-touch="true"] .field-status { display:none; }
+body[data-touch="true"] .touch-hint { display:block; }
+body[data-touch="true"] .status { top:max(8px,env(safe-area-inset-top)); left:max(10px,env(safe-area-inset-left)); right:auto; width:min(340px,calc(100% - 205px)); grid-template-columns:repeat(3,minmax(0,1fr)) minmax(95px,1.3fr); }
+body[data-touch="true"] .metric { padding:6px 9px; }
+body[data-touch="true"] .metric span { font-size:7px; margin-bottom:3px; letter-spacing:.5px; }
+body[data-touch="true"] .metric strong { font-size:13px; }
+body[data-touch="true"] #threat { font-size:11px; }
+body[data-touch="true"] .game-actions { top:max(8px,env(safe-area-inset-top)); right:max(10px,env(safe-area-inset-right)); }
+body[data-touch="true"] .game-actions a,body[data-touch="true"] .game-actions button { display:grid; place-items:center; padding:8px 10px; }
+body[data-touch="true"] #alert-status { top:calc(max(8px,env(safe-area-inset-top)) + 55px); left:max(10px,env(safe-area-inset-left)); font-size:9px; }
+body[data-touch="true"] .field-status { left:max(10px,env(safe-area-inset-left)); bottom:max(8px,env(safe-area-inset-bottom)); max-width:calc(100% - 130px); font-size:7px; padding:4px 7px; }
+body[data-page="play"][data-touch="true"] .music-toggle { top:calc(max(8px,env(safe-area-inset-top)) + 52px); right:max(10px,env(safe-area-inset-right)); min-height:44px; padding:8px 10px; }
+@media(orientation:portrait) {
+  body[data-touch="true"] .status { right:max(10px,env(safe-area-inset-right)); width:auto; }
+  body[data-touch="true"] .game-actions { top:calc(max(8px,env(safe-area-inset-top)) + 56px); }
+  body[data-page="play"][data-touch="true"] .music-toggle { top:calc(max(8px,env(safe-area-inset-top)) + 106px); }
+  body[data-touch="true"] #alert-status { top:calc(max(8px,env(safe-area-inset-top)) + 110px); max-width:calc(100% - 125px); }
+  body[data-touch="true"] .rotate-hint { display:block; color:var(--accent); font-size:11px; }
+}
+@media(orientation:landscape) and (max-height:600px) {
+  body[data-touch="true"] .overlay { padding:12px max(18px,env(safe-area-inset-right)) 12px max(18px,env(safe-area-inset-left)); }
+  body[data-touch="true"] .terminal { width:min(680px,100%); max-height:calc(100dvh - 24px); padding:16px 20px; display:grid; grid-template-columns:1fr 1fr; column-gap:24px; }
+  body[data-touch="true"] #overlay-tag { grid-column:1; grid-row:1; }
+  body[data-touch="true"] .terminal h1 { grid-column:1; grid-row:2; font-size:22px; margin:10px 0; }
+  body[data-touch="true"] #overlay-copy { grid-column:1; grid-row:3; margin:0 0 10px; line-height:1.5; }
+  body[data-touch="true"] .terminal .rule { display:none; }
+  body[data-touch="true"] .mode-picker { grid-column:2; grid-row:1 / span 3; margin-bottom:12px; }
+  body[data-touch="true"] #action { grid-column:2; grid-row:4; }
+  body[data-touch="true"] #change-mode { grid-column:2; grid-row:5; }
+  body[data-touch="true"] .overlay-links { grid-column:1; grid-row:4; margin:0; gap:13px; align-items:center; }
+  body[data-touch="true"] .overlay-links a { min-height:44px; display:grid; place-items:center; }
+  body[data-touch="true"] .touch-hint { grid-column:1; grid-row:5; font-size:9px; line-height:1.5; margin:10px 0 0; }
+}
+@media(orientation:landscape) and (max-height:350px) {
+  .joystick { width:108px; height:108px; bottom:max(21px,env(safe-area-inset-bottom)); }
+  .joystick-thumb { width:40px; height:40px; }
+  .touch-actions { bottom:max(18px,env(safe-area-inset-bottom)); gap:6px; }
 }

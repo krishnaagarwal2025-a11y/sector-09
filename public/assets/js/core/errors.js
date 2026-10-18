@@ -10,6 +10,7 @@
     const game = root.sector09Game;
     if (!game) return;
     game.failed = true; game.mode = 'ERROR'; game.keys?.clear();
+    game.touchControls?.clear();
     try { game.sound?.setAlert(false);game.sound?.setMusic(false); } catch (_) { /* Reporter must not recurse. */ }
     document?.body?.classList.remove('alert');
   }

@@ -10,6 +10,8 @@ Classic scripts work on both HTTP and local files without ES module origin restr
 
 ## Simulation
 
+`ui/touch-controls.js` owns analog phone input, separate from the keyboard Set. A radial deadzone removes small thumb movement and clamps diagonal input to unit speed. Pointer capture maintains drags outside the base; cancellation, lost capture, pause, focus loss and orientation changes clear the vector. Thumb buttons handle touch pointerdown, since a secondary finger may not synthesize a click while a joystick finger is held. A later compatibility click is suppressed. Rotation pauses an active run; browser resize alone clears touch without repeatedly pausing for address-bar changes. Touch drawing is limited to roughly 60 fps independently of the fixed physics step.
+
 The simulation uses a fixed 120 Hz timestep, a bounded catch-up accumulator, normalized eight-direction player motion, and radius-aware arena limits. Circle/rectangle collision resolution subdivides movement to prevent tunneling and preserves tangential sliding. Geometry and movement reject nonfinite values, invalid sizes and excessive collision substeps.
 
 `game/game.js` contains `Vector2D`, `Obstacle`, `Player`, `Enemy`, `FloatingText` and `Game`. The Enemy FSM has explicit PATROL, CHASE, ATTACK and RETURN states. Cover immediately breaks sight and pursuit. Visibility-graph paths around expanded wall corners provide clearance, whiskers steer locally, and exponential velocity interpolation smooths turns. Ray-cast detection polygons stop at concrete faces. God is the toughest mode and still loses after three accepted hits.

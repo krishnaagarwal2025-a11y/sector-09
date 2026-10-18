@@ -10,7 +10,7 @@
     const required = {
       home:[], settings:['difficulty','fullscreen','motion','theme','saved'], sound:['muted','master','effects','siren','music','saved'],
       controls:[], exit:['close-tab','saved'],
-      play:['game','overlay','overlay-tag','overlay-title','overlay-copy','mode-picker','difficulty','mode-description','action','change-mode','fullscreen','pause','controls-panel','alert-status','score','high-score','integrity','threat','run-status','diagnostic-status']
+      play:['game','overlay','overlay-tag','overlay-title','overlay-copy','mode-picker','difficulty','mode-description','action','change-mode','fullscreen','pause','controls-panel','alert-status','score','high-score','integrity','threat','run-status','diagnostic-status','touch-controls','joystick','joystick-thumb','touch-pause','touch-mute']
     }[page];
     for (const id of required) if (!document.getElementById(id)) throw new Error(`Missing page element: ${id}`);
     for (const element of document.querySelectorAll('a[href]')) {
@@ -18,7 +18,7 @@
       if (!['http:','https:','file:'].includes(url.protocol)) throw new Error('Invalid navigation destination');
     }
     if (page === 'play') {
-      if (!root.Sector09 || !root.SectorModelTests) throw new Error('Game or diagnostic module missing');
+      if (!root.Sector09 || !root.SectorModelTests || !root.SectorTouchControls) throw new Error('Game, touch controls or diagnostic module missing');
       if (typeof root.requestAnimationFrame !== 'function') throw new Error('Animation frames unavailable');
       const canvas = document.getElementById('game');
       if (typeof canvas.getContext !== 'function' || !canvas.getContext('2d')) throw new Error('Canvas 2D unavailable');

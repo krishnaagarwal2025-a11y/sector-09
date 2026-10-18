@@ -12,7 +12,7 @@
   --accent:#805a28; --accent-border:#a28354; --alert-bg:#f3dbd5; --alert-text:#813a30;
   --panel-overlay:rgba(246,248,242,.95); --veil:rgba(225,229,223,.84);
 }
-.music-toggle { position:fixed; left:14px; bottom:14px; z-index:25; border:1px solid var(--border-strong); border-radius:0; padding:8px 11px; background:var(--panel); color:var(--muted); font:11px 'Segoe UI',Arial,sans-serif; cursor:pointer; }
+.music-toggle { position:fixed; left:max(14px,env(safe-area-inset-left)); bottom:max(14px,env(safe-area-inset-bottom)); z-index:25; border:1px solid var(--border-strong); border-radius:0; padding:8px 11px; background:var(--panel); color:var(--muted); font:11px 'Segoe UI',Arial,sans-serif; cursor:pointer; }
 .music-toggle:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 body[data-page="play"] .music-toggle { left:auto; right:18px; bottom:auto; top:62px; z-index:8; }
 @media(max-width:850px) { body[data-page="play"] .music-toggle { top:138px; } }

@@ -167,9 +167,12 @@
 
   class Player {
     constructor(difficulty = DIFFICULTIES.medium) { this.difficulty = difficulty; this.pos = new Vector2D(400, 530); this.vel = new Vector2D(); this.radius = 12; this.heading = -Math.PI / 2; this.hp = 3; this.invulnerable = 0; }
-    update(dt, keys, walls) {
-      const direction = new Vector2D(Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft')),
+    update(dt, keys, walls, touch = null) {
+      let direction = new Vector2D(Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft')),
         Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'))).normalized();
+      if(!direction.length()&&touch&&Number.isFinite(touch.x)&&Number.isFinite(touch.y)){
+        direction=new Vector2D(touch.x,touch.y);if(direction.length()>1)direction=direction.normalized();
+      }
       this.vel = direction.scale(CONFIG.PLAYER_SPEED);
       if (direction.length()) {
         const target = Math.atan2(direction.y, direction.x), delta = target - this.heading;
@@ -303,10 +306,11 @@
       this.motion = this.preferences.motion && !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
       document.body.classList.toggle('reduced-motion', !this.motion);
       this.selectedDifficulty = this.preferences.difficulty; this.records = Object.create(null);
-      this.reset(); this.bind(); this.showOverlay(); this.updateHUD();
+      this.reset(); this.bind();this.touchControls=root.SectorTouchControls?new root.SectorTouchControls(this):null; this.showOverlay(); this.updateHUD();
       this.frame = this.frame.bind(this); root.requestAnimationFrame(this.frame);
     }
     reset() {
+      this.touchControls?.clear();
       if (!DIFFICULTIES[this.selectedDifficulty]) {
         root.SectorErrors?.report('DIFFICULTY_INVALID',new Error('Invalid difficulty'),{message:'The selected difficulty was invalid. Medium has been selected.'});
         this.selectedDifficulty='medium';
@@ -330,7 +334,7 @@
         if (key === ' ' && this.mode === 'READY') this.start();
         else if (key === 'r' && this.mode === 'OVER') this.start();
         else if (key === 'p' || key === 'escape') this.togglePause();
-        else if (key === 'm') { this.sound.applySettings({ ...this.sound.settings, muted:!this.sound.muted }); root.SectorPreferences?.save({muted:this.sound.muted}); this.sound.unlock().then(()=>this.updateAlert()); this.updateAlert(); }
+        else if (key === 'm') this.toggleMute();
         else if (key === 'f') this.toggleFullscreen();
         else if (key === 't') {
           this.diagnostics = !this.diagnostics;
@@ -347,6 +351,7 @@
       this.document.addEventListener('visibilitychange', () => { if (this.document.hidden) { this.keys.clear(); if (this.mode === 'RUNNING') this.togglePause(); } });
       this.document.getElementById('action').addEventListener('click', () => this.mode === 'PAUSED' ? this.togglePause() : this.start());
       this.document.getElementById('fullscreen').addEventListener('click', () => this.toggleFullscreen());
+      if(typeof this.document.documentElement.requestFullscreen!=='function'){this.document.getElementById('fullscreen').disabled=true;this.document.getElementById('fullscreen').title='Fullscreen is unavailable in this browser';}
       this.document.getElementById('pause').addEventListener('click', () => this.togglePause());
       root.addEventListener('pagehide',()=>{this.sound.setAlert(false);this.sound.setMusic(false);});
       if(root.matchMedia?.('(max-width: 600px)').matches) this.document.getElementById('controls-panel').open=false;
@@ -364,7 +369,8 @@
         this.keys.clear(); this.document.getElementById('fullscreen').textContent = this.document.fullscreenElement ? 'EXIT FULLSCREEN [F]' : 'FULLSCREEN [F]';
       });
     }
-    start() { if(this.failed) return; const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); (root.SectorAudio?root.SectorAudio.start():this.sound.unlock()).then(ready=>{if(ready && this.mode==='RUNNING'){this.sound.cue('start');this.updateAlert();}}); if (initial && this.preferences.fullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
+    start() { if(this.failed) return; const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); (root.SectorAudio?root.SectorAudio.start():this.sound.unlock()).then(ready=>{if(ready && this.mode==='RUNNING'){this.sound.cue('start');this.updateAlert();}}); if (initial && this.preferences.fullscreen&&this.document.documentElement.requestFullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
+    toggleMute(){this.sound.applySettings({...this.sound.settings,muted:!this.sound.muted});root.SectorPreferences?.save({muted:this.sound.muted});this.sound.unlock().then(()=>this.updateAlert());this.updateAlert();this.updateHUD();}
     async enterFullscreen() {
       if (this.document.fullscreenElement) return;
       try {
@@ -377,7 +383,7 @@
       catch (error) { this.log('FULLSCREEN UNAVAILABLE / WINDOW VIEW ACTIVE');root.SectorErrors?.report('FULLSCREEN',error,{message:'Fullscreen could not be changed. You can keep playing in this window.'}); }
       this.canvas.focus();
     }
-    togglePause() { if (!['RUNNING', 'PAUSED'].includes(this.mode)) return; this.mode = this.mode === 'RUNNING' ? 'PAUSED' : 'RUNNING'; this.sound.cue('pause'); this.keys.clear(); this.accumulator = 0; this.showOverlay(); if (this.mode === 'RUNNING') {this.canvas.focus();this.sound.unlock().then(()=>this.updateAlert());} this.updateAlert(); this.updateHUD(); }
+    togglePause() { if (!['RUNNING', 'PAUSED'].includes(this.mode)) return; this.mode = this.mode === 'RUNNING' ? 'PAUSED' : 'RUNNING'; this.touchControls?.clear();this.sound.cue('pause'); this.keys.clear(); this.accumulator = 0; this.showOverlay(); if (this.mode === 'RUNNING') {this.canvas.focus();this.sound.unlock().then(()=>this.updateAlert());} this.updateAlert(); this.updateHUD(); }
     onCaught(enemy) {
       this.caughtFlash = 0.3; this.sound.caught();
       this.burst(this.player.pos, '#B05252', 12);
@@ -395,7 +401,9 @@
       const status = this.document.getElementById('alert-status'); if (status.textContent !== text) status.textContent = text;
     }
     showOverlay() {
+      this.touchControls?.refresh();
       const get = id => this.document.getElementById(id), over = this.mode === 'OVER', paused = this.mode === 'PAUSED';
+      get('overlay').dataset.mode=this.mode;
       get('overlay').hidden = this.mode === 'RUNNING';
       get('overlay-tag').textContent = over ? `GAME OVER / ${this.difficulty.label}` : paused ? `PAUSED / ${this.difficulty.label}` : 'SIMULATION / STANDBY';
       get('overlay-title').textContent = over ? 'YOU LOST' : paused ? 'FIELD PAUSED' : 'ENTER THE SECTOR';
@@ -404,7 +412,7 @@
       get('change-mode').hidden = !paused;
       get('difficulty').value = this.selectedDifficulty;
       get('mode-description').textContent = DIFFICULTIES[this.selectedDifficulty].description;
-      get('action').textContent = over ? 'PRESS [R] TO RESET SIMULATION' : paused ? 'PRESS [P] TO RESUME' : 'PRESS [SPACE] TO INITIALIZE';
+      get('action').textContent = this.touchControls?.enabled ? over?'PLAY AGAIN':paused?'RESUME GAME':'START GAME' : over ? 'PRESS [R] TO RESET SIMULATION' : paused ? 'PRESS [P] TO RESUME' : 'PRESS [SPACE] TO INITIALIZE';
     }
     log(message) { this.events.unshift(`${this.time.toFixed(1).padStart(5, '0')} / ${message}`); this.events = this.events.slice(0, 4); }
     /** Rejection sampling has a deterministic grid fallback: spawning always terminates. */
@@ -455,7 +463,7 @@
     update(dt) {
       if (!Number.isFinite(dt) || dt<0) throw new RangeError('Simulation timestep must be finite and nonnegative');
       if (!Number.isSafeInteger(this.score) || this.score<0 || !Number.isInteger(this.player.hp) || this.player.hp<0 || this.player.hp>3 || !Number.isFinite(this.node.x) || !Number.isFinite(this.node.y)) throw new Error('Invalid score, health or collectible state');
-      this.time += dt; this.caughtFlash = Math.max(0, this.caughtFlash - dt); this.player.update(dt, this.keys, this.walls);
+      this.time += dt; this.caughtFlash = Math.max(0, this.caughtFlash - dt); this.player.update(dt, this.keys, this.walls,this.touchControls?.vector);
       for (const enemy of this.enemies) enemy.update(dt, this);
       if (this.player.hp <= 0) { this.mode = 'OVER'; this.sound.cue('over'); this.keys.clear(); this.updateAlert(); this.saveHighScore(); this.log(`YOU LOST / FINAL SCORE ${this.score}`); this.showOverlay(); return; }
       this.updateAlert();
@@ -493,6 +501,7 @@
       get('pause').textContent=this.mode==='PAUSED'?'Resume [P]':'Pause [P]';
       const errorCount=root.SectorErrors?.snapshot().length || 0;
       get('diagnostic-status').textContent = `DIAGNOSTICS ${this.diagnostics ? `${this.testResults.filter(t => t.pass).length}/${this.testResults.length} PASS` : 'OFF'} / AUDIO ${this.sound.muted ? 'OFF' : 'ON'} / ISSUES ${errorCount}`;
+      this.touchControls?.refresh();
     }
     draw() {
       const ctx = this.ctx; ctx.clearRect(0, 0, 800, 600); ctx.fillStyle = palette().background; ctx.fillRect(0, 0, 800, 600);
@@ -539,13 +548,13 @@
         this.accumulator += Math.min(elapsed, 0.1);
         while (this.accumulator >= CONFIG.STEP && this.mode === 'RUNNING') { this.update(CONFIG.STEP); this.accumulator -= CONFIG.STEP; }
       } else this.accumulator = 0;
-      this.draw();
+      if(!this.touchControls?.enabled||!this.lastDraw||timestamp-this.lastDraw>=1000/60-0.5){this.draw();this.lastDraw=timestamp;}
       if (!this.lastHUD || timestamp - this.lastHUD >= 100) { this.updateHUD(); this.lastHUD = timestamp; }
       root.requestAnimationFrame(this.frame);
       } catch(error) { this.fail(error); }
     }
     fail(error) {
-      this.failed=true; this.mode='ERROR'; this.keys.clear();this.sound.setAlert(false);this.sound.setMusic(false);
+      this.failed=true; this.mode='ERROR'; this.keys.clear();this.touchControls?.clear();this.sound.setAlert(false);this.sound.setMusic(false);
       if(root.SectorErrors) root.SectorErrors.report('GAME_LOOP',error,{severity:'fatal',message:'The simulation stopped after an unexpected error. Reload to start a fresh run.'});
       else console.error('[SECTOR-09 / GAME_LOOP]',error);
     }

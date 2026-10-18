@@ -122,6 +122,44 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     for(const [width,height] of [[714,715],[390,844]]){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth && document.documentElement.scrollHeight<=innerHeight'),true);}
     const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'home.png'),Buffer.from(shot.data,'base64'));
     console.log('PASS: responsive layout. Screenshot: artifacts/screenshots/home.png');
+    await send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:5});
+    await send('Emulation.setDeviceMetricsOverride',{width:844,height:390,deviceScaleFactor:1,mobile:true});
+    await ev('SectorPreferences.save({difficulty:"easy",fullscreen:false,motion:false,muted:false,theme:"dark"})');
+    await nav('/pages/play.html');
+    const tap=async selector=>{
+      const p=await ev(`(()=>{const r=document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+      assert.ok(p.x>0&&p.x<844&&p.y>0&&p.y<390,'Tap target outside landscape viewport: '+selector);
+      await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...p,id:9,radiusX:4,radiusY:4,force:1}]});await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await delay(40);
+    };
+    assert.equal(await ev('sector09Game.touchControls.enabled && document.getElementById("action").textContent==="START GAME"'),true,'Phone controls not initialized');
+    const phoneStart=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'phone-landscape-start.png'),Buffer.from(phoneStart.data,'base64'));
+    await tap('#action');assert.equal(await ev('sector09Game.mode==="RUNNING" && !document.getElementById("touch-controls").hidden'),true,'Touch start failed');
+    const origin=await ev('(()=>{const r=document.getElementById("joystick").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()');
+    const initialX=await ev('sector09Game.player.pos.x');
+    await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...origin,id:1,radiusX:5,radiusY:5,force:1}]});
+    const right={x:origin.x+90,y:origin.y,id:1,radiusX:5,radiusY:5,force:1};
+    await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[right]});await delay(140);
+    assert.ok(await ev('sector09Game.player.pos.x')>initialX+8,'Joystick did not move player');
+    assert.ok(await ev('sector09Game.touchControls.vector.x')>0.99,'Joystick drag capture/clamp failed');
+    await send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});await delay(35);
+    assert.equal(await ev('sector09Game.touchControls.vector.x===0 && sector09Game.touchControls.pointer===null && sector09Game.player.vel.length()===0'),true,'Cancelled touch left movement stuck');
+    await tap('#touch-mute');assert.equal(await ev('sector09Game.sound.muted'),true,'Touch mute failed');await tap('#touch-mute');
+    await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{...origin,id:1,radiusX:5,radiusY:5,force:1}]});await send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[right]});
+    const pausePoint=await ev('(()=>{const r=document.getElementById("touch-pause").getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,id:2,radiusX:5,radiusY:5,force:1}})()');
+    await send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[right,pausePoint]});await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[right]});await delay(40);
+    assert.equal(await ev('sector09Game.mode==="PAUSED" && sector09Game.touchControls.vector.x===0'),true,'Multitouch pause did not clear movement');
+    await send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await tap('#action');
+    assert.equal(await ev('sector09Game.mode==="RUNNING" && sector09Game.touchControls.vector.x===0'),true,'Touch resume retained stale movement');
+    const phonePlay=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'phone-landscape-play.png'),Buffer.from(phonePlay.data,'base64'));
+    await send('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await delay(80);
+    assert.equal(await ev('sector09Game.mode==="PAUSED" && sector09Game.touchControls.vector.x===0 && getComputedStyle(document.querySelector(".rotate-hint")).display!=="none"'),true,'Rotation did not pause safely');
+    for(const [width,height] of [[667,375],[740,360],[932,430],[568,320]]){
+      await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:true});await nav('/');
+      assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth && document.documentElement.scrollHeight<=innerHeight'),true,'Landscape menu overflow '+width);
+      await nav('/pages/play.html');
+      assert.equal(await ev('(()=>{const a=document.getElementById("action").getBoundingClientRect(),t=document.querySelector(".terminal");return a.y>=0&&a.bottom<=innerHeight&&a.x>=0&&a.right<=innerWidth&&t.scrollHeight<=t.clientHeight&&document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight})()'),true,'Phone start controls clipped '+width);
+    }
+    console.log('PASS: real touch start/movement/cancel, two-finger pause, sound, resume, rotation and four phone landscape sizes.');
     await send('Browser.close');
   }finally{
     ws?.close();browser.kill();await new Promise(resolve=>server.close(resolve));

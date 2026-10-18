@@ -53,5 +53,13 @@ test('BGM upgrades existing volume to maximum once and preserves later manual ch
   assert.equal(JSON.parse(saved).musicVolumeRevision,2);
   first.api.save({music:0.4});assert.equal(preferences(storage).api.read().music,0.4);
 });
+test('Touch joystick deadzone and radial clamping keep diagonal speed bounded',()=>{
+  const Touch=require('../public/assets/js/ui/touch-controls.js');
+  assert.deepEqual(Touch.direction(1,1,40),{x:0,y:0});assert.deepEqual(Touch.direction(NaN,0,40),{x:0,y:0});
+  const cardinal=Touch.direction(100,0,40),diagonal=Touch.direction(100,100,40);assert.equal(cardinal.x,1);assert.ok(Math.abs(Math.hypot(diagonal.x,diagonal.y)-1)<1e-9);
+  const partial=Touch.direction(20,0,40);assert.ok(partial.x>0&&partial.x<1);
+  const {Player,Vector2D}=require('../public/assets/js/game/game.js'),player=new Player();player.update(0.1,new Set(),[],diagonal);assert.ok(Math.abs(player.vel.length()-170)<1e-8);
+  player.update(0.1,new Set(),[],{x:0,y:0});assert.equal(player.vel.length(),0);
+});
 
 

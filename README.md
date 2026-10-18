@@ -36,7 +36,8 @@ Escape/
 │           │   ├── game.js          # Models, physics, AI, loop and rendering
 │           │   └── self-tests.js    # Browser/Node model verification
 │           └── ui/
-│               └── menu.js
+│               ├── menu.js
+│               └── touch-controls.js
 ├── scripts/
 │   └── serve.cjs                   # Dependency-free development server
 ├── tests/
@@ -60,7 +61,15 @@ Open `public/index.html` directly, or use Node.js 22+ for local HTTP serving:
 npm start
 ```
 
-Visit [localhost:3000](http://127.0.0.1:3000). No `npm install` is required. Set `PORT` or pass a port to `node scripts/serve.cjs 8080` if needed. The logical playfield remains 800 × 600 and scales without changing collision geometry. A desktop keyboard is required for movement.
+Visit [localhost:3000](http://127.0.0.1:3000). No `npm install` is required. Set `PORT` or pass a port to `node scripts/serve.cjs 8080` if needed. The logical playfield remains 800 × 600 and scales without changing collision geometry. Desktop supports a keyboard; phones/tablets automatically show touch controls.
+
+## Phones and tablets
+
+Rotate to **landscape**, tap **Start game**, and drag the **left joystick** to move. The right thumb buttons pause/resume through the menu and toggle all audio. Home, fullscreen (if supported), music, difficulty selection and replay are also tappable. Portrait remains playable and offers a rotation hint; orientation is never forced.
+
+The joystick has a radial deadzone and variable speed, with full diagonal motion capped at keyboard speed. Pointer capture supports drags outside its base. Touch cancellation, lost capture, pause, focus loss and rotation clear input; rotation pauses an active run. Pause and Sound work with a second finger while the first holds the joystick. Safe-area padding accounts for notches, the short-screen start menu uses two columns, and the keyboard help box is hidden on touch devices. Decorative drawing is capped near 60 fps on touch devices while simulation remains at 120 Hz.
+
+Phone layouts and real dispatched touch events were verified in Chromium emulation at 844 × 390, 667 × 375, 740 × 360, 932 × 430 and 568 × 320, plus portrait rotation. This is not a physical-device certification; fullscreen/audio availability still depends on the phone's browser.
 
 Local-file storage policy varies by browser. Use HTTP or the deployed HTTPS site for consistent settings across pages.
 
@@ -114,7 +123,7 @@ npm test
 npm run test:browser
 ```
 
-`npm test` runs 15 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, patrol spawn audio triggers/cap, theme/music preferences, asset/link and JavaScript syntax checks, and server/deployment routing checks.
+`npm test` runs 16 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, patrol spawn audio triggers/cap, theme/music preferences, asset/link and JavaScript syntax checks, and server/deployment routing checks.
 
 `npm run test:browser` requires an installed Chrome/Chromium browser. Set `CHROME_PATH` if it is not found automatically. It verifies all six pages, saved light theme including Canvas pixels, mixer, gameplay, siren visibility/cover triggers, site-wide BGM/phase restoration, pause/game-over continuity, mute and the music control, and responsive layout, then injects failures to verify recovery. OfflineAudioContext renders actual siren/music/spawn/collection waveforms to assert increased BGM signal, silent mute and bounded peaks; this checks synthesis, not the user's speakers or perceived loudness. It uses a fresh temporary profile; screenshots go to ignored `artifacts/screenshots/`. No test dependencies are installed. Press T in-game to run the same 17 isolated model cases and inspect velocity vectors, LOS, distances, whiskers and frame timing.
 
@@ -131,4 +140,5 @@ Run this from the repository root with an authenticated Vercel CLI.
 ## Scope
 
 One fixed arena, single player and keyboard controls. Units collide with walls and arena bounds but may overlap each other. Difficulty keeps escalating after the unit cap. Optional browser APIs can be denied; implemented fallbacks are described above. The visibility graph is optimized for this four-obstacle map, rather than large generated worlds.
+
 

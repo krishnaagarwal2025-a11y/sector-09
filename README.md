@@ -1,8 +1,12 @@
 # SECTOR-09 / StateShift
 
+[Play the live game](https://sector-09.vercel.app) · [GitHub repository](https://github.com/krishnaagarwal2025-a11y/sector-09)
+
 A zero-dependency, top-down tactical stealth and arcade game built with HTML5 Canvas and vanilla JavaScript. Retrieve brass data nodes while autonomous security units patrol, pursue, attack, and return to their routes. Concrete cover interrupts detection; every 50 points increases the pressure.
 
 ## Run
+
+Production is hosted on Vercel at **https://sector-09.vercel.app**. The Vercel project is connected to the GitHub repository. The repository is private; the production game is publicly accessible. For manual updates from an authenticated CLI, run `npx vercel deploy --prod` from this folder. No build step or runtime dependencies are needed.
 
 Open **index.html** in a current desktop browser. No installation, build step, server, network connection, or external assets are required. Keep `game.js` beside `index.html`.
 

@@ -29,6 +29,21 @@ test('Physics rejects nonfinite state, unsafe movement and invalid level geometr
 test('A fatal frame error silences alert audio, clears input and stops scheduling',()=>{
   let frames=0,silenced=0;const reports=[],context={requestAnimationFrame(){frames++;},console,SectorSoundSystem:class{},SectorErrors:{report:(...args)=>reports.push(args)}};
   vm.runInNewContext(source('game/game.js'),context);const game=Object.create(context.Sector09.Game.prototype);
-  Object.assign(game,{mode:'PAUSED',keys:new Set(['w']),sound:{setAlert(){silenced++;}},draw(){throw Error('Render failure')}});
+  Object.assign(game,{mode:'PAUSED',keys:new Set(['w']),sound:{setAlert(){silenced++;},setMusic(){}},draw(){throw Error('Render failure')}});
   game.frame(20);game.frame(21);assert.equal(game.failed,true);assert.equal(game.mode,'ERROR');assert.equal(game.keys.size,0);assert.equal(frames,0);assert.equal(silenced,1);assert.equal(reports[0][0],'GAME_LOOP');
 });
+test('Patrol deployment cue plays for each new guard and stops at the unit cap',()=>{
+  const api=require('../public/assets/js/game/game.js'),game=Object.create(api.Game.prototype);let spawns=0;
+  Object.assign(game,{difficulty:api.DIFFICULTIES.medium,player:new api.Player(),walls:api.makeWalls(),enemies:[api.makeEnemy(0),api.makeEnemy(1)],score:0,highScore:0,threat:1,speedMultiplier:1,texts:[],events:[],time:0,sound:{click(){},cue(type){assert.equal(type,'spawn');spawns++;}},saveHighScore(){}});
+  game.node=game.spawnNode();for(let i=0;i<4;i++)game.collect();assert.equal(spawns,0);
+  game.collect();assert.equal(spawns,1);assert.equal(game.enemies.length,3);
+  for(let i=0;i<20;i++)game.collect();assert.equal(spawns,3);assert.equal(game.enemies.length,5);
+});
+test('Theme and music preferences validate, clamp and default for older saved settings',()=>{
+  const {api}=preferences({getItem:()=>'{"difficulty":"hard"}'});assert.equal(api.read().theme,'dark');assert.equal(api.read().music,0.35);
+  assert.equal(api.normalize({theme:'light',music:2}).music,1);assert.equal(api.normalize({theme:'light'}).theme,'light');assert.equal(api.normalize({theme:'broken',music:NaN}).theme,'dark');
+});
+test('Light and dark canvas palettes are distinct and cover every enemy state',()=>{
+  const {light,dark}=require('../public/assets/js/core/theme.js');assert.notEqual(light.background,dark.background);for(const key of Object.keys(dark)){assert.ok(light[key],key);}for(const state of ['PATROL','CHASE','ATTACK','RETURN'])assert.ok(light.states[state]);
+});
+

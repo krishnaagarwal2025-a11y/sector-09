@@ -36,19 +36,48 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     for(const route of ['/','/pages/settings.html','/pages/sound.html','/pages/controls.html','/pages/exit.html','/pages/play.html'])await nav(route);
     await nav('/pages/settings.html');
     await ev(`(()=>{const d=document.getElementById('difficulty');d.value='god';d.dispatchEvent(new Event('change'));const f=document.getElementById('fullscreen');f.checked=false;f.dispatchEvent(new Event('change'));})()`);
+    await ev(`(()=>{const e=document.getElementById('theme');e.value='light';e.dispatchEvent(new Event('change'))})()`);
     await nav('/pages/sound.html');
     await ev(`(()=>{const e=document.getElementById('master');e.value=25;e.dispatchEvent(new Event('input'));document.querySelector('[data-preview="collect"]').click();})()`);await delay(150);
     assert.equal(await ev('document.getElementById("saved").textContent.includes("Playing preview")'),true);
     await nav('/pages/play.html');assert.equal(await ev('sector09Game.enemies.length===5 && sector09Game.sound.settings.master===0.25'),true);
+    assert.equal(await ev('document.documentElement.dataset.theme==="light" && SectorTheme.palette().background==="#EDF0EB"'),true);
     await send('Emulation.setDeviceMetricsOverride',{width:1191,height:715,deviceScaleFactor:1,mobile:false});
     await ev('document.getElementById("action").click()');await delay(100);
     assert.equal(await ev('sector09Game.mode==="RUNNING" && sector09Game.sound.context.state==="running"'),true);
+    assert.equal(await ev('sector09Game.sound.musicTimer!==null'),true,'BGM did not start');
+    const renderedAudio=await ev(`(async()=>{
+      const rms={};
+      for(const type of ['siren','music','spawn','collect','muted']){
+        const offline=new OfflineAudioContext(1,26460,22050),s=new SectorSoundSystem();
+        s.context=new Proxy(offline,{get(target,key){if(key==='state')return 'running';const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
+        s.masterGain=offline.createGain();s.effectsGain=offline.createGain();s.sirenGain=offline.createGain();s.musicGain=offline.createGain();
+        s.masterGain.connect(offline.destination);for(const bus of [s.effectsGain,s.sirenGain,s.musicGain])bus.connect(s.masterGain);
+        s.applySettings({master:1,effects:1,siren:1,music:1,muted:type==='muted'});
+        if(type==='siren'||type==='muted')s.setAlert(true);else if(type==='music')s.scheduleMusicStep(0,0);else if(type==='spawn')s.cue('spawn');else s.click();
+        const samples=(await offline.startRendering()).getChannelData(0);let sum=0,peak=0;for(const n of samples){sum+=n*n;peak=Math.max(peak,Math.abs(n));}rms[type]={rms:Math.sqrt(sum/samples.length),peak};
+      }
+      return rms;
+    })()`);
+    assert.ok(renderedAudio.siren.rms>0.012,'Siren waveform too quiet');for(const type of ['music','spawn','collect'])assert.ok(renderedAudio[type].rms>0.002,type+' produced no audible signal');assert.equal(renderedAudio.muted.rms,0);for(const value of Object.values(renderedAudio))assert.ok(value.peak<0.8,'Audio clipping');
+    console.log('PASS: actual rendered siren/BGM/spawn/effects waveforms, mute silence and peak levels.');
+    await ev(`(()=>{const g=sector09Game;g.enemies=[Sector09.makeEnemy(0)];const e=g.enemies[0];e.pos=new Sector09.Vector2D(130,180);g.player.pos=new Sector09.Vector2D(130,240);e.transition('CHASE');g.updateAlert()})()`);
+    assert.equal(await ev('sector09Game.alert && !!sector09Game.sound.siren'),true,'Visible player did not trigger siren');
+    await ev('sector09Game.player.pos=new Sector09.Vector2D(315,180);sector09Game.enemies[0].decide(sector09Game.player,sector09Game.walls);sector09Game.updateAlert()');
+    assert.equal(await ev('!sector09Game.sound.siren && sector09Game.sound.musicTimer!==null'),true,'Cover did not stop alarm or incorrectly stopped BGM');
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'m',code:'KeyM'});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'m',code:'KeyM'});
+    assert.equal(await ev('sector09Game.sound.muted && sector09Game.sound.musicTimer===null && !sector09Game.sound.siren'),true,'Mute did not stop music/alarm');
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'m',code:'KeyM'});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'m',code:'KeyM'});await delay(50);
+    assert.equal(await ev('!sector09Game.sound.muted && sector09Game.sound.musicTimer!==null'),true,'Unmute did not restore BGM');
+    assert.equal(await ev('(()=>{sector09Game.draw();const p=sector09Game.ctx.getImageData(780,580,1,1).data;return p[0]===237&&p[1]===240&&p[2]===235})()'),true,'Canvas light palette was not rendered');
     const checkPlayLayout=async()=>assert.equal(await ev(`(()=>{const c=document.getElementById('game').getBoundingClientRect(),p=document.getElementById('controls-panel').getBoundingClientRect(),hud=document.querySelector('.status').getBoundingClientRect();return c.x===0&&c.y===0&&c.width===innerWidth&&c.height===innerHeight&&Math.abs(innerWidth-p.right)<=18&&Math.abs(innerHeight-p.bottom)<=16&&hud.top>=0&&hud.right<=innerWidth&&!document.querySelector('header,footer,#states,#log,.workspace')&&document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight})()`),true,'Playfield or overlays do not fit viewport');
     await checkPlayLayout();
     const screenshots=path.resolve(__dirname,'../artifacts/screenshots');fs.mkdirSync(screenshots,{recursive:true});
     const gameShot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'play-full-viewport.png'),Buffer.from(gameShot.data,'base64'));
     await ev('document.getElementById("pause").click();sector09Game.updateHUD()');assert.equal(await ev('sector09Game.mode==="PAUSED" && document.getElementById("pause").textContent==="Resume [P]"'),true);
+    assert.equal(await ev('sector09Game.sound.musicTimer===null && !sector09Game.sound.siren'),true,'Pause did not stop audio');
     await ev('document.getElementById("pause").click()');assert.equal(await ev('sector09Game.mode==="RUNNING"'),true);
+    await delay(50);assert.equal(await ev('sector09Game.sound.musicTimer!==null'),true,'BGM did not resume');
     await ev('document.querySelector("#controls-panel summary").click()');assert.equal(await ev('!document.getElementById("controls-panel").open'),true);
     await ev('sector09Game.toggleFullscreen()');await checkPlayLayout();await ev('sector09Game.toggleFullscreen()');
     for(const [width,height] of [[714,715],[390,844]]){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await checkPlayLayout();}

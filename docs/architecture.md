@@ -18,7 +18,11 @@ The simulation uses a fixed 120 Hz timestep, a bounded catch-up accumulator, nor
 
 ## Audio and preferences
 
-`audio/sound-system.js` owns a lazily initialized Web Audio context, master/effects/siren buses, procedural cues, and one shared quiet siren. Unlock returns a resolved boolean, including failure, so callers can accurately report whether previews actually played. Browser/device failures mute audio and produce a recoverable warning; gameplay remains available.
+`audio/sound-system.js` owns a lazily initialized Web Audio context, master/effects/siren/music buses, procedural cues, and one shared audible siren. The siren is a 420 Hz triangle carrier modulated ±120 Hz at 0.8 Hz, with a 0.075 amplitude envelope before user volumes. It replaces a 0.008-amplitude 220 Hz sine that could be hard to hear on small speakers. Unlock returns a resolved boolean, including failure, so previews report whether they actually played. Browser/device failures mute audio and produce a recoverable warning; gameplay remains available.
+
+The 88 BPM BGM uses a 16-step minor bass/melody sequence, scheduled 180 ms ahead on the audio clock by one 100 ms interval. Repeated game updates reuse that interval. Pause, mute, game over, focus loss, page navigation, and fatal shutdown clear it and cancel queued notes. A deployment cue plays only inside the branch that actually adds a guard; milestones after the five-unit cap do not produce it. The mixer keeps BGM independent of sound effects and siren.
+
+`core/theme.js` applies a validated saved Light/Dark preference before page painting and provides Canvas palettes. `css/theme.css` holds shared CSS variables. Changing appearance affects rendering only; collision, visibility and difficulty are unchanged. The Light palette uses darker unit labels and brass markers for contrast on its paper background.
 
 `core/preferences.js` validates saved settings, clamps volumes, reports malformed JSON/invalid values, and retains changes in memory when storage is denied or full. Reads are cached, preventing an unsuccessful write from being overwritten by stale saved values. A storage event invalidates that cache for other-tab updates. High scores remain separate by difficulty, with a separate God challenge bucket and a legacy Medium fallback.
 

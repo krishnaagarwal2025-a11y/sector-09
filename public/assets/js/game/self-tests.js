@@ -92,7 +92,7 @@
     });
     test('Spawns clear walls; difficulty caps units and compounds speed', () => {
       const game = Object.create(Game.prototype);
-      Object.assign(game, { difficulty:DIFFICULTIES.medium, player:new Player(), walls:makeWalls(), enemies:[makeEnemy(0),makeEnemy(1)], score:0, highScore:0, threat:1, speedMultiplier:1, texts:[], time:0, events:[], sound:{click() {}}, saveHighScore() {} });
+      Object.assign(game, { difficulty:DIFFICULTIES.medium, player:new Player(), walls:makeWalls(), enemies:[makeEnemy(0),makeEnemy(1)], score:0, highScore:0, threat:1, speedMultiplier:1, texts:[], time:0, events:[], sound:{click() {},cue() {}}, saveHighScore() {} });
       for (let i = 0; i < 100; i++) { const p = game.spawnNode(); assert(!game.walls.some(w => w.overlaps(p,18)), 'Spawn in cover'); assert(p.x >= 18 && p.x <= 782 && p.y >= 18 && p.y <= 582, 'Spawn outside arena'); }
       game.node = game.spawnNode(); for (let i = 0; i < 25; i++) game.collect();
       assert(game.score === 250 && game.threat === 6 && game.enemies.length === 5, 'Escalation/cap failed');
@@ -100,7 +100,7 @@
     });
     test('Mode resets apply guard counts, settings and independent records', () => {
       const game = Object.create(Game.prototype);
-      Object.assign(game, { records:Object.create(null), sound:{setAlert() {}, click() {}} });
+      Object.assign(game, { records:Object.create(null), sound:{setAlert() {},setMusic() {},click() {},cue() {}} });
       game.loadHighScore = function () { this.highScore = this.records[this.difficultyKey] || 0; this.persistedHighScore = this.highScore; };
       game.saveHighScore = function () { this.records[this.difficultyKey] = this.highScore; };
       for (const [key, settings] of Object.entries(DIFFICULTIES)) {
@@ -142,3 +142,4 @@
 root.SectorModelTests = runTests;
 if(typeof module !== 'undefined' && module.exports) module.exports = runTests;
 })(typeof window !== 'undefined' ? window : globalThis);
+

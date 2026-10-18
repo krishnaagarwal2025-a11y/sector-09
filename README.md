@@ -19,6 +19,7 @@ Escape/
 │   │   └── exit.html
 │   └── assets/
 │       ├── css/
+│       │   ├── theme.css
 │       │   ├── menu.css
 │       │   ├── game.css
 │       │   └── errors.css
@@ -26,7 +27,8 @@ Escape/
 │           ├── core/               # Startup, diagnostics, preferences
 │           │   ├── bootstrap.js
 │           │   ├── errors.js
-│           │   └── preferences.js
+│           │   ├── preferences.js
+│           │   └── theme.js
 │           ├── audio/
 │           │   └── sound-system.js
 │           ├── game/
@@ -65,7 +67,9 @@ Local-file storage policy varies by browser. Use HTTP or the deployed HTTPS site
 
 The play page is a full-viewport canvas, with floating score/health/mode telemetry and compact Home/Pause/Fullscreen actions. Controls sit in a collapsible box at the bottom right and start collapsed on small screens. There is no gameplay header, footer or sidebar. The 800 × 600 world remains fully visible without distortion; extra aspect-ratio space uses the same matte field background. State labels remain on guards, while field events remain in the internal simulation log rather than a separate panel.
 
-Home offers Play, Settings, Sound, Field manual and Exit. Game settings save default difficulty, fullscreen on start and decorative motion preferences. The Sound page provides master/effects/siren volume sliders, mute and audible previews. System reduced-motion preferences are respected. Browser tab closing may require the tab's own close button; Exit explains that fallback.
+Home offers Play, Settings, Sound, Field manual and Exit. Game settings save difficulty, fullscreen, motion preferences, and **Light/Dark appearance**. The saved theme applies to menus, HUD, walls, grid and units. The Sound page provides independent **master, effects, siren and BGM** volume sliders, mute, and previews for collection, siren, contact, patrol deployment and BGM. System reduced-motion preferences are respected. Browser tab closing may require the tab's own close button; Exit explains that fallback.
+
+The procedural BGM is a simple 16-step minor pattern at 88 BPM. It starts on initialization and stops on pause, mute, game over, loss of focus, navigation or fatal errors. Resume/unmute restarts one loop, without stacking timers. Effects have been raised, and the shared siren now sweeps from 300 to 540 Hz at a more audible level; it still stops immediately when you hide. Every actual additional patrol unit at a 50-point milestone plays a distinct deployment cue. Once five guards are present, speed escalation continues without a false spawn cue. Existing saved volume choices are preserved; adjust them on the Sound page if needed.
 
 Settings use `sector09.preferences` in local storage. Denied storage falls back to page-session memory with a visible notice. High scores are saved per mode; God uses `sector09.highScore.god.toughest` so former invincible-practice records do not count. The former single high score remains a Medium fallback.
 
@@ -107,9 +111,9 @@ npm test
 npm run test:browser
 ```
 
-`npm test` runs 11 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, asset/link and JavaScript syntax checks, and server/deployment routing checks.
+`npm test` runs 14 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, patrol spawn audio triggers/cap, theme/music preferences, asset/link and JavaScript syntax checks, and server/deployment routing checks.
 
-`npm run test:browser` requires an installed Chrome/Chromium browser. Set `CHROME_PATH` if it is not found automatically. It verifies all six pages, preferences, mixer, gameplay and responsive layout, then injects failures to verify recovery. It uses a fresh temporary profile; screenshots go to ignored `artifacts/screenshots/`. No test dependencies are installed. Press T in-game to run the same 17 isolated model cases and inspect velocity vectors, LOS, distances, whiskers and frame timing.
+`npm run test:browser` requires an installed Chrome/Chromium browser. Set `CHROME_PATH` if it is not found automatically. It verifies all six pages, saved light theme including Canvas pixels, mixer, gameplay, siren visibility/cover triggers, BGM pause/resume/mute lifecycle, and responsive layout, then injects failures to verify recovery. OfflineAudioContext renders actual siren/music/spawn/collection waveforms to assert nonzero signal, silent mute and bounded peaks; this checks synthesis, not the user's speakers or perceived loudness. It uses a fresh temporary profile; screenshots go to ignored `artifacts/screenshots/`. No test dependencies are installed. Press T in-game to run the same 17 isolated model cases and inspect velocity vectors, LOS, distances, whiskers and frame timing.
 
 ## Deployment
 

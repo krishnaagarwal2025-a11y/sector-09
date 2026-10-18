@@ -17,6 +17,8 @@
     god: { label:'GOD', units:5, speed:1.45, detection:220, loss:280, cooldown:0.55, grace:0.55, escalation:0.15, description:'Toughest difficulty. 5 elite guards, maximum sight and speed, fastest attacks, only 0.55s recovery. Speed +15% per threat level. 3 hits and you lose.' }
   }).map(([key, value]) => [key, Object.freeze(value)])));
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  const Theme=root.SectorTheme || (typeof require==='function'?require('../core/theme.js'):null);
+  const palette=()=>Theme.palette();
 
   /** Euclidean length sqrt(x*x + y*y); normalization preserves heading at unit speed. */
   class Vector2D {
@@ -76,11 +78,11 @@
       }
     }
     draw(ctx, i) {
-      ctx.fillStyle = '#4A4E52'; ctx.strokeStyle = '#141517'; ctx.lineWidth = 2;
+      const p=palette();ctx.fillStyle = p.wall; ctx.strokeStyle = p.border; ctx.lineWidth = 2;
       ctx.fillRect(this.x, this.y, this.w, this.h); ctx.strokeRect(this.x, this.y, this.w, this.h);
-      ctx.fillStyle = '#292c2f'; ctx.font = '10px "Segoe UI", Arial, sans-serif';
+      ctx.fillStyle = p.wallLabel; ctx.font = '10px "Segoe UI", Arial, sans-serif';
       ctx.fillText(`BLK / 0${i + 1}`, this.x + 10, this.y + 18);
-      ctx.strokeStyle = '#62666a'; ctx.lineWidth = 1;
+      ctx.strokeStyle = p.fastener; ctx.lineWidth = 1;
       for (const x of [this.x + 6, this.x + this.w - 6]) for (const y of [this.y + 6, this.y + this.h - 6]) {
         ctx.beginPath(); ctx.moveTo(x - 2, y); ctx.lineTo(x + 2, y); ctx.stroke();
       }
@@ -176,7 +178,7 @@
       moveBody(this, this.vel.scale(dt), walls); this.invulnerable = Math.max(0, this.invulnerable - dt);
     }
     damage() { if (this.invulnerable > 0 || this.hp <= 0) return false; this.hp--; this.invulnerable = this.difficulty.grace; return true; }
-    draw(ctx, time) { drawHull(ctx, this, '#5C7A99', this.invulnerable > 0 && Math.floor(time * 10) % 2 ? 0.35 : 1); }
+    draw(ctx, time) { drawHull(ctx, this, palette().player, this.invulnerable > 0 && Math.floor(time * 10) % 2 ? 0.35 : 1); }
   }
 
   class Enemy {
@@ -254,8 +256,8 @@
       }
     }
     draw(ctx, walls) {
-      const color = COLORS[this.state];
-      ctx.save(); ctx.strokeStyle = '#32363A'; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+      const color = palette().states[this.state];
+      ctx.save(); ctx.strokeStyle = palette().route; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
       ctx.beginPath(); this.waypoints.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
       ctx.setLineDash([]);
       for (const p of this.waypoints) { ctx.beginPath(); ctx.moveTo(p.x - 4, p.y); ctx.lineTo(p.x + 4, p.y); ctx.moveTo(p.x, p.y - 4); ctx.lineTo(p.x, p.y + 4); ctx.stroke(); }
@@ -271,15 +273,15 @@
 
   function drawHull(ctx, body, color, alpha = 1) {
     ctx.save(); ctx.globalAlpha = alpha; ctx.translate(body.pos.x, body.pos.y); ctx.rotate(body.heading);
-    ctx.fillStyle = color; ctx.strokeStyle = '#141517'; ctx.lineWidth = 1.5;
+    ctx.fillStyle = color; ctx.strokeStyle = palette().border; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-10, -10); ctx.lineTo(-6, 0); ctx.lineTo(-10, 10); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = '#c5c8c6'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(21, 0); ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = '#eef1ea'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(21, 0); ctx.stroke(); ctx.restore();
   }
 
   class FloatingText {
     constructor(pos) { this.pos = new Vector2D(pos.x, pos.y); this.life = 0.8; }
     update(dt) { this.life -= dt; this.pos.y -= dt * 22; }
-    draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.life / 0.8); ctx.fillStyle = '#C29B61'; ctx.font = '12px "Segoe UI", Arial, sans-serif'; ctx.fillText('+10', this.pos.x - 10, this.pos.y); ctx.restore(); }
+    draw(ctx) { ctx.save(); ctx.globalAlpha = Math.max(0, this.life / 0.8); ctx.fillStyle = palette().node; ctx.font = '12px "Segoe UI", Arial, sans-serif'; ctx.fillText('+10', this.pos.x - 10, this.pos.y); ctx.restore(); }
   }
 
   const SoundSystem = root.SectorSoundSystem || (typeof require === 'function' ? require('../audio/sound-system.js') : null);
@@ -314,7 +316,7 @@
       this.enemies = Array.from({length:this.difficulty.units}, (_, i) => makeEnemy(i, this.difficulty));
       this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0;
       this.events = []; this.accumulator = 0; this.alert = false; this.caughtFlash = 0; this.particles = []; this.trail = []; this.trailClock = 0; this.collectPulse = null;
-      this.sound.setAlert(false); this.node = this.spawnNode(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
+      this.sound.setAlert(false);this.sound.setMusic(false); this.node = this.spawnNode(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
     }
     bind() {
       const controls = [' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', 'p', 'escape', 't', 'm', 'r', 'f'];
@@ -328,7 +330,7 @@
         if (key === ' ' && this.mode === 'READY') this.start();
         else if (key === 'r' && this.mode === 'OVER') this.start();
         else if (key === 'p' || key === 'escape') this.togglePause();
-        else if (key === 'm') { this.sound.applySettings({ ...this.sound.settings, muted:!this.sound.muted }); root.SectorPreferences?.save({muted:this.sound.muted}); this.sound.unlock(); this.updateAlert(); }
+        else if (key === 'm') { this.sound.applySettings({ ...this.sound.settings, muted:!this.sound.muted }); root.SectorPreferences?.save({muted:this.sound.muted}); this.sound.unlock().then(()=>this.updateAlert()); this.updateAlert(); }
         else if (key === 'f') this.toggleFullscreen();
         else if (key === 't') {
           this.diagnostics = !this.diagnostics;
@@ -346,6 +348,7 @@
       this.document.getElementById('action').addEventListener('click', () => this.mode === 'PAUSED' ? this.togglePause() : this.start());
       this.document.getElementById('fullscreen').addEventListener('click', () => this.toggleFullscreen());
       this.document.getElementById('pause').addEventListener('click', () => this.togglePause());
+      root.addEventListener('pagehide',()=>{this.sound.setAlert(false);this.sound.setMusic(false);});
       if(root.matchMedia?.('(max-width: 600px)').matches) this.document.getElementById('controls-panel').open=false;
       this.document.getElementById('difficulty').addEventListener('change', event => {
         if (!['READY','OVER'].includes(this.mode) || !DIFFICULTIES[event.target.value]) return;
@@ -361,7 +364,7 @@
         this.keys.clear(); this.document.getElementById('fullscreen').textContent = this.document.fullscreenElement ? 'EXIT FULLSCREEN [F]' : 'FULLSCREEN [F]';
       });
     }
-    start() { if(this.failed) return; const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); this.sound.unlock().then(ready=>{if(ready && this.mode==='RUNNING')this.sound.cue('start');}); if (initial && this.preferences.fullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
+    start() { if(this.failed) return; const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); this.sound.unlock().then(ready=>{if(ready && this.mode==='RUNNING'){this.sound.cue('start');this.updateAlert();}}); if (initial && this.preferences.fullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
     async enterFullscreen() {
       if (this.document.fullscreenElement) return;
       try {
@@ -374,7 +377,7 @@
       catch (error) { this.log('FULLSCREEN UNAVAILABLE / WINDOW VIEW ACTIVE');root.SectorErrors?.report('FULLSCREEN',error,{message:'Fullscreen could not be changed. You can keep playing in this window.'}); }
       this.canvas.focus();
     }
-    togglePause() { if (!['RUNNING', 'PAUSED'].includes(this.mode)) return; this.mode = this.mode === 'RUNNING' ? 'PAUSED' : 'RUNNING'; this.sound.cue('pause'); this.keys.clear(); this.accumulator = 0; this.showOverlay(); if (this.mode === 'RUNNING') this.canvas.focus(); this.updateAlert(); this.updateHUD(); }
+    togglePause() { if (!['RUNNING', 'PAUSED'].includes(this.mode)) return; this.mode = this.mode === 'RUNNING' ? 'PAUSED' : 'RUNNING'; this.sound.cue('pause'); this.keys.clear(); this.accumulator = 0; this.showOverlay(); if (this.mode === 'RUNNING') {this.canvas.focus();this.sound.unlock().then(()=>this.updateAlert());} this.updateAlert(); this.updateHUD(); }
     onCaught(enemy) {
       this.caughtFlash = 0.3; this.sound.caught();
       this.burst(this.player.pos, '#B05252', 12);
@@ -386,6 +389,7 @@
     updateAlert() {
       this.alert = this.mode === 'RUNNING' && this.enemies.some(e => e.canSee(this.player, this.walls));
       this.sound.setAlert(this.alert);
+      this.sound.setMusic(this.mode==='RUNNING'&&!this.failed);
       this.document.body.classList.toggle('alert', this.alert);
       const text = this.alert ? 'ALERT / YOU ARE VISIBLE' : 'SECTOR CLEAR';
       const status = this.document.getElementById('alert-status'); if (status.textContent !== text) status.textContent = text;
@@ -432,7 +436,7 @@
     collect() {
       this.score += 10; this.highScore = Math.max(this.highScore, this.score); this.saveHighScore();
       this.texts.push(new FloatingText(this.node)); this.sound.click();
-      this.burst(this.node, '#C29B61', 10);
+      this.burst(this.node, palette().node, 10);
       if (this.motion) this.collectPulse = { pos:new Vector2D(this.node.x,this.node.y), life:0.5 };
       const nextThreat = 1 + Math.floor(this.score / 50);
       if (nextThreat > this.threat) {
@@ -442,6 +446,7 @@
           // A new security unit deploys at the safest point on its own route.
           enemy.pos = enemy.waypoints.reduce((a, b) => a.distance(this.player.pos) > b.distance(this.player.pos) ? a : b);
           enemy.pos = new Vector2D(enemy.pos.x, enemy.pos.y); this.enemies.push(enemy);
+          this.sound.cue('spawn');
         }
         this.log(`THREAT ${String(this.threat).padStart(2, '0')} / SPEED +${Math.round(this.difficulty.escalation * 100)}% / ${this.enemies.length} UNITS`);
       }
@@ -474,9 +479,9 @@
     drawEffects(ctx) {
       if (!this.motion) return;
       ctx.save();
-      for(const p of this.trail) { ctx.globalAlpha=p.life/0.22*0.16; ctx.fillStyle='#5C7A99';ctx.fillRect(p.pos.x-3,p.pos.y-3,6,6); }
+      for(const p of this.trail) { ctx.globalAlpha=p.life/0.22*0.16; ctx.fillStyle=palette().player;ctx.fillRect(p.pos.x-3,p.pos.y-3,6,6); }
       for(const p of this.particles) {ctx.globalAlpha=p.life/0.45;ctx.fillStyle=p.color;ctx.fillRect(p.pos.x-1.5,p.pos.y-1.5,3,3);}
-      if(this.collectPulse) { const p=this.collectPulse;ctx.globalAlpha=p.life/0.5;ctx.strokeStyle='#C29B61';ctx.lineWidth=1;ctx.beginPath();ctx.arc(p.pos.x,p.pos.y,10+(0.5-p.life)*55,0,Math.PI*2);ctx.stroke(); }
+      if(this.collectPulse) { const p=this.collectPulse;ctx.globalAlpha=p.life/0.5;ctx.strokeStyle=palette().node;ctx.lineWidth=1;ctx.beginPath();ctx.arc(p.pos.x,p.pos.y,10+(0.5-p.life)*55,0,Math.PI*2);ctx.stroke(); }
       ctx.restore();
     }
     updateHUD() {
@@ -490,15 +495,15 @@
       get('diagnostic-status').textContent = `DIAGNOSTICS ${this.diagnostics ? `${this.testResults.filter(t => t.pass).length}/${this.testResults.length} PASS` : 'OFF'} / AUDIO ${this.sound.muted ? 'OFF' : 'ON'} / ISSUES ${errorCount}`;
     }
     draw() {
-      const ctx = this.ctx; ctx.clearRect(0, 0, 800, 600); ctx.fillStyle = '#1E2022'; ctx.fillRect(0, 0, 800, 600);
-      ctx.strokeStyle = '#26292C'; ctx.lineWidth = 1; ctx.beginPath();
+      const ctx = this.ctx; ctx.clearRect(0, 0, 800, 600); ctx.fillStyle = palette().background; ctx.fillRect(0, 0, 800, 600);
+      ctx.strokeStyle = palette().grid; ctx.lineWidth = 1; ctx.beginPath();
       for (let x = 40; x < 800; x += 40) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, 600); }
       for (let y = 40; y < 600; y += 40) { ctx.moveTo(0, y + 0.5); ctx.lineTo(800, y + 0.5); } ctx.stroke();
       this.enemies.forEach(e => e.draw(ctx, this.walls)); this.walls.forEach((w, i) => w.draw(ctx, i));
       this.drawEffects(ctx);
-      ctx.fillStyle = '#C29B61'; ctx.beginPath(); ctx.moveTo(this.node.x, this.node.y - 7); ctx.lineTo(this.node.x + 7, this.node.y); ctx.lineTo(this.node.x, this.node.y + 7); ctx.lineTo(this.node.x - 7, this.node.y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = palette().node; ctx.beginPath(); ctx.moveTo(this.node.x, this.node.y - 7); ctx.lineTo(this.node.x + 7, this.node.y); ctx.lineTo(this.node.x, this.node.y + 7); ctx.lineTo(this.node.x - 7, this.node.y); ctx.closePath(); ctx.fill();
       const nodeSize = this.motion ? 12 + Math.sin(this.time*3)*1.5 : 12;
-      ctx.strokeStyle = '#C29B61'; ctx.lineWidth = 1; ctx.strokeRect(this.node.x - nodeSize, this.node.y - nodeSize, nodeSize*2, nodeSize*2);
+      ctx.strokeStyle = palette().node; ctx.lineWidth = 1; ctx.strokeRect(this.node.x - nodeSize, this.node.y - nodeSize, nodeSize*2, nodeSize*2);
       this.player.draw(ctx, this.time); this.texts.forEach(t => t.draw(ctx));
       if (this.alert || this.caughtFlash > 0) {
         ctx.save(); ctx.fillStyle = '#B05252'; ctx.globalAlpha = this.caughtFlash > 0 ? 0.13 * this.caughtFlash / 0.3 : 0.025;
@@ -514,10 +519,10 @@
       for (const e of this.enemies) {
         ctx.strokeStyle = hasSight(e.pos, this.player.pos, this.walls) ? '#688060' : '#B05252';
         ctx.setLineDash([2, 5]); ctx.beginPath(); ctx.moveTo(e.pos.x, e.pos.y); ctx.lineTo(this.player.pos.x, this.player.pos.y); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = '#c5c8c6'; ctx.fillText(`dist: ${Math.round(e.pos.distance(this.player.pos))}px`, clamp(e.pos.x - 30, 4, 710), clamp(e.pos.y + 30, 30, 580));
+        ctx.fillStyle = palette().text; ctx.fillText(`dist: ${Math.round(e.pos.distance(this.player.pos))}px`, clamp(e.pos.x - 30, 4, 710), clamp(e.pos.y + 30, 30, 580));
         for (const ray of e.whiskers) { ctx.strokeStyle = ray.blocked ? '#B05252' : '#B89A52'; ctx.beginPath(); ctx.moveTo(e.pos.x, e.pos.y); ctx.lineTo(ray.end.x, ray.end.y); ctx.stroke(); }
       }
-      ctx.fillStyle = '#16181A'; ctx.fillRect(8, 8, 420, 40); ctx.strokeStyle = '#3A3F45'; ctx.strokeRect(8, 8, 420, 40); ctx.fillStyle = '#c5c8c6';
+      ctx.fillStyle = palette().panel; ctx.fillRect(8, 8, 420, 40); ctx.strokeStyle = palette().panelBorder; ctx.strokeRect(8, 8, 420, 40); ctx.fillStyle = palette().text;
       ctx.fillText(`DIAGNOSTICS / FRAME ${this.frameMs.toFixed(2)}ms / PHYSICS 120Hz`, 18, 24);
       ctx.fillText(`TESTS ${this.testResults.filter(t => t.pass).length}/${this.testResults.length} / BLUE: VELOCITY / DASH: LOS / GOLD: WHISKERS`, 18, 39); ctx.restore();
     }
@@ -540,7 +545,7 @@
       } catch(error) { this.fail(error); }
     }
     fail(error) {
-      this.failed=true; this.mode='ERROR'; this.keys.clear();this.sound.setAlert(false);
+      this.failed=true; this.mode='ERROR'; this.keys.clear();this.sound.setAlert(false);this.sound.setMusic(false);
       if(root.SectorErrors) root.SectorErrors.report('GAME_LOOP',error,{severity:'fatal',message:'The simulation stopped after an unexpected error. Reload to start a fresh run.'});
       else console.error('[SECTOR-09 / GAME_LOOP]',error);
     }

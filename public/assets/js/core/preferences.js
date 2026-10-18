@@ -1,15 +1,16 @@
 /* Shared, validated local preferences. The game works when storage is denied. */
 (function (root) {
   'use strict';
-  const defaults = Object.freeze({ difficulty:'medium', fullscreen:true, motion:true, master:0.7, effects:0.8, siren:0.5, muted:false });
+  const defaults = Object.freeze({ difficulty:'medium', fullscreen:true, motion:true, theme:'dark', master:0.85, effects:0.9, siren:0.7, music:0.35, muted:false });
   let memory = { ...defaults }, loaded = false, persistent = true;
   const warn = (code,error,message) => root.SectorErrors?.report(code,error,{message});
   function normalize(value) {
     const v = value && typeof value === 'object' ? value : {};
     const result = { ...defaults };
     if (['easy','medium','hard','god'].includes(v.difficulty)) result.difficulty = v.difficulty;
+    if (['dark','light'].includes(v.theme)) result.theme = v.theme;
     for (const k of ['fullscreen','motion','muted']) if (typeof v[k] === 'boolean') result[k] = v[k];
-    for (const k of ['master','effects','siren']) if (typeof v[k] === 'number' && Number.isFinite(v[k])) result[k] = Math.max(0, Math.min(1, v[k]));
+    for (const k of ['master','effects','siren','music']) if (typeof v[k] === 'number' && Number.isFinite(v[k])) result[k] = Math.max(0, Math.min(1, v[k]));
     return result;
   }
   function read() {

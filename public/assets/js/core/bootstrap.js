@@ -6,9 +6,9 @@
     if (!errors) throw new Error('Diagnostics module missing');
     const page = document.body.dataset.page;
     if (!['home','play','settings','sound','controls','exit'].includes(page)) throw new Error(`Unknown page: ${page}`);
-    if (!root.SectorPreferences || !root.SectorSoundSystem) throw new Error('Preferences or audio module missing');
+    if (!root.SectorPreferences || !root.SectorSoundSystem || !root.SectorTheme) throw new Error('Preferences, theme or audio module missing');
     const required = {
-      home:[], settings:['difficulty','fullscreen','motion','saved'], sound:['muted','master','effects','siren','saved'],
+      home:[], settings:['difficulty','fullscreen','motion','theme','saved'], sound:['muted','master','effects','siren','music','saved'],
       controls:[], exit:['close-tab','saved'],
       play:['game','overlay','overlay-tag','overlay-title','overlay-copy','mode-picker','difficulty','mode-description','action','change-mode','fullscreen','pause','controls-panel','alert-status','score','high-score','integrity','threat','run-status','diagnostic-status']
     }[page];

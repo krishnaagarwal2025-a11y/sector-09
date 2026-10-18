@@ -340,7 +340,7 @@
       this.enemies = Array.from({length:this.difficulty.units}, (_, i) => makeEnemy(i, this.difficulty));
       this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0; this.bossNotice = 0;
       this.events = []; this.accumulator = 0; this.alert = false; this.caughtFlash = 0; this.particles = []; this.trail = []; this.trailClock = 0; this.collectPulse = null;
-      this.sound.setAlert(false); this.node = this.spawnNode(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
+      this.sound.setAlert(false); this.nodes = []; this.pickupTarget = Math.random() < 0.5 ? 2 : 3; this.fillNodes(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
     }
     bind() {
       const controls = [' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', 'p', 'escape', 't', 'm', 'r', 'f'];
@@ -437,7 +437,7 @@
     log(message) { this.events.unshift(`${this.time.toFixed(1).padStart(5, '0')} / ${message}`); this.events = this.events.slice(0, 4); }
     /** Rejection sampling has a deterministic grid fallback: spawning always terminates. */
     spawnNode() {
-      const valid = p => !this.walls.some(w => w.overlaps(p, 18)) && p.distance(this.player.pos) > 45 && this.enemies.every(e => p.distance(e.pos) > 38);
+      const valid = p => !this.walls.some(w => w.overlaps(p, 18)) && p.distance(this.player.pos) > 45 && this.enemies.every(e => p.distance(e.pos) > 38) && (this.nodes || []).every(n => p.distance(n) > 60);
       for (let i = 0; i < 300; i++) { const p = new Vector2D(28 + Math.random() * 744, 28 + Math.random() * 544); if (valid(p)) return p; }
       for (let y = 30; y < 580; y += 25) for (let x = 30; x < 780; x += 25) { const p = new Vector2D(x, y); if (valid(p)) return p; }
       return new Vector2D(30, 30); // Fixed map always has ample valid grid candidates.
@@ -468,20 +468,33 @@
       enemy.pos = new Vector2D(waypoint.x,waypoint.y); enemy.waypoint = enemy.waypoints.indexOf(waypoint);
       this.enemies.push(enemy);
     }
-    collect() {
+    fillNodes() {
+      this.nodes ||= []; this.pickupTarget ||= 3;
+      while (this.nodes.length < this.pickupTarget) {
+        const node = this.spawnNode(); node.life = node.duration = 10 + Math.random() * 4; this.nodes.push(node);
+      }
+    }
+    updateNodes(dt) {
+      for (const node of this.nodes) node.life -= dt;
+      this.nodes = this.nodes.filter(node => node.life > 0); this.fillNodes();
+    }
+    collect(node = this.nodes[0]) {
+      const index = this.nodes.indexOf(node); if (index < 0) return;
+      this.nodes.splice(index, 1);
       this.score += 10; this.highScore = Math.max(this.highScore, this.score); this.saveHighScore();
-      this.texts.push(new FloatingText(this.node)); this.sound.click();
-      this.burst(this.node, palette().node, 10);
-      if (this.motion) this.collectPulse = { pos:new Vector2D(this.node.x,this.node.y), life:0.5 };
+      this.texts.push(new FloatingText(node)); this.sound.click();
+      this.burst(node, palette().node, 10);
+      if (this.motion) this.collectPulse = { pos:new Vector2D(node.x,node.y), life:0.5 };
       const nextThreat = 1 + Math.floor(this.score / 50);
       if (nextThreat > this.threat) {
         this.threat = nextThreat; this.speedMultiplier = Math.pow(1 + this.difficulty.escalation, this.threat - 1);
-        if (this.score % 100 === 0) {
-          // A boss phase replaces the entire patrol population for 50 points.
+        const wave = this.score % 200;
+        if (wave === 100 || wave === 150) {
+          // Two consecutive boss waves replace patrols between 100 and 200 points.
           this.enemies = [];
-          this.deploy(makeBoss(this.score / 100 - 1, this.difficulty));
+          for (let i = 0; i < (wave === 100 ? 1 : 2); i++) this.deploy(makeBoss(i, this.difficulty));
           this.bossNotice = 3; this.sound.cue('boss');
-          this.log('WARDEN DEPLOYED / PATROLS RETURN AT ' + (this.score + 50));
+          this.log(this.enemies.length + ' WARDEN(S) DEPLOYED / PATROLS RETURN AT ' + (Math.floor(this.score / 200) * 200 + 200));
         } else if (this.enemies.some(e => e.isBoss)) {
           this.enemies = []; this.bossNotice = 0;
           const count = Math.min(CONFIG.MAX_ENEMIES, this.difficulty.units + Math.floor(this.score / 50));
@@ -492,15 +505,16 @@
         }
         this.log('THREAT ' + this.threat + ' / ' + this.enemies.length + ' UNITS');
       }
-      this.node = this.spawnNode();
+      this.fillNodes();
     }
     update(dt) {
       if (!Number.isFinite(dt) || dt<0) throw new RangeError('Simulation timestep must be finite and nonnegative');
-      if (!Number.isSafeInteger(this.score) || this.score<0 || !Number.isInteger(this.player.hp) || this.player.hp<0 || this.player.hp>3 || !Number.isFinite(this.node.x) || !Number.isFinite(this.node.y)) throw new Error('Invalid score, health or collectible state');
+      if (!Number.isSafeInteger(this.score) || this.score<0 || !Number.isInteger(this.player.hp) || this.player.hp<0 || this.player.hp>3 || !Array.isArray(this.nodes) || !this.nodes.length || this.nodes.some(n => !Number.isFinite(n.x) || !Number.isFinite(n.y) || !Number.isFinite(n.life) || !Number.isFinite(n.duration) || n.duration <= 0)) throw new Error('Invalid score, health or collectible state');
       this.time += dt; this.bossNotice = Math.max(0, (this.bossNotice || 0) - dt); this.caughtFlash = Math.max(0, this.caughtFlash - dt); this.player.update(dt, this.keys, this.walls,this.touchControls?.vector);
       for (const enemy of this.enemies) enemy.update(dt, this);
       if (this.player.hp <= 0) { this.mode = 'OVER'; this.sound.cue('over'); this.keys.clear(); this.updateAlert(); this.saveHighScore(); this.log(`YOU LOST / FINAL SCORE ${this.score}`); this.showOverlay(); return; }
-      if (circlesTouch(this.player.pos, this.player.radius, this.node, 7)) this.collect();
+      this.updateNodes(dt);
+      for (const node of [...this.nodes]) if (circlesTouch(this.player.pos, this.player.radius, node, 7)) this.collect(node);
       this.updateAlert();
       this.texts.forEach(t => t.update(dt)); this.texts = this.texts.filter(t => t.life > 0);
       this.updateEffects(dt);
@@ -544,9 +558,12 @@
       for (let y = 40; y < 600; y += 40) { ctx.moveTo(0, y + 0.5); ctx.lineTo(800, y + 0.5); } ctx.stroke();
       this.enemies.forEach(e => e.draw(ctx, this.walls)); this.walls.forEach((w, i) => w.draw(ctx, i));
       this.drawEffects(ctx);
-      ctx.fillStyle = palette().node; ctx.beginPath(); ctx.moveTo(this.node.x, this.node.y - 7); ctx.lineTo(this.node.x + 7, this.node.y); ctx.lineTo(this.node.x, this.node.y + 7); ctx.lineTo(this.node.x - 7, this.node.y); ctx.closePath(); ctx.fill();
-      const nodeSize = this.motion ? 12 + Math.sin(this.time*3)*1.5 : 12;
-      ctx.strokeStyle = palette().node; ctx.lineWidth = 1; ctx.strokeRect(this.node.x - nodeSize, this.node.y - nodeSize, nodeSize*2, nodeSize*2);
+      for (const node of this.nodes) {
+        ctx.save(); ctx.globalAlpha = node.life < 3 ? 0.45 + node.life / 3 * 0.55 : 1;
+        ctx.fillStyle = palette().node; ctx.beginPath(); ctx.moveTo(node.x,node.y-7); ctx.lineTo(node.x+7,node.y); ctx.lineTo(node.x,node.y+7); ctx.lineTo(node.x-7,node.y); ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = palette().node; ctx.lineWidth = 1.5; ctx.beginPath();
+        ctx.arc(node.x,node.y,13,-Math.PI/2,-Math.PI/2 + Math.PI*2*clamp(node.life/node.duration,0,1)); ctx.stroke(); ctx.restore();
+      }
       this.player.draw(ctx, this.time); this.texts.forEach(t => t.draw(ctx));
       if (this.time < 5 && (this.mode === 'RUNNING' || this.mode === 'PAUSED')) {
         const x = clamp(this.player.pos.x, 62, 738), y = Math.max(72, this.player.pos.y - 55);
@@ -567,8 +584,8 @@
         ctx.save(); ctx.fillStyle = palette().panel; ctx.fillRect(210,90,380,54);
         ctx.strokeStyle = palette().states.CHASE; ctx.strokeRect(210,90,380,54);
         ctx.textAlign = 'center'; ctx.fillStyle = palette().text; ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
-        ctx.fillText('WARDEN DEPLOYED',400,112); ctx.font = '12px "Segoe UI", Arial, sans-serif';
-        ctx.fillText('Solo boss phase / patrols return at ' + (Math.floor(this.score / 100) * 100 + 50),400,132); ctx.restore();
+        ctx.fillText(this.enemies.length === 2 ? 'TWO WARDENS DEPLOYED' : 'WARDEN DEPLOYED',400,112); ctx.font = '12px "Segoe UI", Arial, sans-serif';
+        ctx.fillText('Boss wave / patrols return at ' + (Math.floor(this.score / 200) * 200 + 200),400,132); ctx.restore();
       }
       if (this.diagnostics) this.drawDiagnostics(ctx);
     }

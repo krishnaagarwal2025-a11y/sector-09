@@ -32,22 +32,35 @@ test('A fatal frame error silences alert audio, clears input and stops schedulin
   Object.assign(game,{mode:'PAUSED',keys:new Set(['w']),sound:{setAlert(){silenced++;},setMusic(){}},draw(){throw Error('Render failure')}});
   game.frame(20);game.frame(21);assert.equal(game.failed,true);assert.equal(game.mode,'ERROR');assert.equal(game.keys.size,0);assert.equal(frames,0);assert.equal(silenced,1);assert.equal(reports[0][0],'GAME_LOOP');
 });
-test('Warden phases replace all patrols for exactly 50 points in every mode',()=>{
+test('One then two Wardens replace patrols at 100/150 and normal patrols return at 200',()=>{
   const api=require('../public/assets/js/game/game.js');
   for(const difficulty of Object.values(api.DIFFICULTIES)){
     const game=Object.create(api.Game.prototype),cues=[];
     Object.assign(game,{difficulty,player:new api.Player(),walls:api.makeWalls(),enemies:Array.from({length:difficulty.units},(_,i)=>api.makeEnemy(i,difficulty)),score:0,highScore:0,threat:1,speedMultiplier:1,texts:[],events:[],time:0,sound:{click(){},cue(type){cues.push(type);}},saveHighScore(){}});
-    game.node=game.spawnNode();
+    game.nodes=[];game.fillNodes();
     for(let i=1;i<=40;i++){
       const before=cues.length;game.collect();const score=i*10;
-      const bossPhase=score>=100&&score%100<50;
-      assert.equal(game.enemies.filter(e=>e.isBoss).length,bossPhase?1:0,'Boss at '+score);
+      const bossPhase=score%200>=100;
+      assert.equal(game.enemies.filter(e=>e.isBoss).length,bossPhase?(score%200>=150?2:1):0,'Boss at '+score);
       assert.equal(game.enemies.filter(e=>!e.isBoss).length,bossPhase?0:Math.min(5,difficulty.units+Math.floor(score/50)),'Patrols at '+score);
-      if(score%100===0){assert.deepEqual(cues.slice(before),['boss']);assert.equal(game.bossNotice,3);}
-      else if(score>=150&&score%100===50){assert.deepEqual(cues.slice(before),['spawn']);assert.equal(game.bossNotice,0);}
+      if(score%200>=100&&score%50===0){assert.deepEqual(cues.slice(before),['boss']);assert.equal(game.bossNotice,3);}
+      else if(score%200===0){assert.deepEqual(cues.slice(before),['spawn']);assert.equal(game.bossNotice,0);}
       else if(score%50!==0)assert.equal(cues.length,before);
       for(const enemy of game.enemies){assert.equal(game.walls.some(w=>w.overlaps(enemy.pos,enemy.radius)),false);assert.ok(enemy.pos.distance(game.player.pos)>45);}
     }
+  }
+});
+
+test('Multiple timed pickups stay separated, expire without score and cannot be collected twice',()=>{
+  const api=require('../public/assets/js/game/game.js');
+  for(const target of [2,3]){
+    const game=Object.create(api.Game.prototype);
+    Object.assign(game,{difficulty:api.DIFFICULTIES.easy,player:new api.Player(),walls:api.makeWalls(),enemies:[],nodes:[],pickupTarget:target,score:0,highScore:0,threat:1,texts:[],sound:{click(){},cue(){}},saveHighScore(){}});
+    game.fillNodes();assert.equal(game.nodes.length,target);
+    const first=[...game.nodes];game.updateNodes(15);assert.equal(game.score,0);assert.equal(game.nodes.length,target);assert.ok(game.nodes.every(n=>!first.includes(n)));
+    for(const node of game.nodes){assert.ok(node.life>=10&&node.life<=14);assert.equal(game.walls.some(w=>w.overlaps(node,18)),false);assert.ok(game.nodes.every(other=>other===node||other.distance(node)>60));}
+    const picked=game.nodes[0],untouched=game.nodes[1];game.collect(picked);assert.equal(game.score,10);assert.equal(game.nodes.length,target);assert.ok(game.nodes.includes(untouched));game.collect(picked);assert.equal(game.score,10);
+    game.nodes[0].x=NaN;assert.throws(()=>game.update(0.01),/collectible/);
   }
 });
 

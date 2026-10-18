@@ -81,7 +81,7 @@ Home offers Play, Settings, Sound, Field manual and Exit. Game settings save dif
 
 The procedural BGM is a simple 16-step minor pattern at 88 BPM, now with stronger bass/melody levels and longer notes. It runs on the home page, Settings, Sound, Manual, Exit, and the game, including standby, pause and game over. A single shared audio instance prevents duplicate loops on a page. First playback requires a click or keypress under browser autoplay rules; the floating **Enable music / Music on** button provides an explicit control. Navigation remembers activation and the musical step in session storage. Independent HTML pages recreate their audio context, so a brief loading gap can occur, and a browser may require another interaction before resuming. Hidden tabs, mute, music volume zero and fatal errors stop BGM.
 
-The shared siren sweeps from 300 to 540 Hz and stops immediately when you hide. Every actual additional patrol unit at a 50-point milestone plays a deployment cue. After the five-guard cap, escalation continues without a false spawn cue. BGM defaults to 100%; existing browsers receive the maximum once for this revision, while later manual slider changes remain saved. Other saved volume choices are preserved.
+The shared siren sweeps from 300 to 540 Hz and stops immediately when you hide. Every actual additional patrol unit at a 50-point milestone plays a deployment cue. After the five-patrol cap, escalation continues without a false spawn cue. BGM defaults to 100%; existing browsers receive the maximum once for this revision, while later manual slider changes remain saved. Other saved volume choices are preserved.
 
 Settings use `sector09.preferences` in local storage. Denied storage falls back to page-session memory with a visible notice. High scores are saved per mode; God uses `sector09.highScore.god.toughest` so former invincible-practice records do not count. The former single high score remains a Medium fallback.
 
@@ -108,7 +108,7 @@ Loss of focus pauses automatically and clears held input. Pause offers mode swit
 | Hard | 3 | 77.5 px/s | 190 / 245 px | 0.75 s | 0.9 s | +12% |
 | God | 5 | 89.9 px/s | 220 / 280 px | 0.55 s | 0.55 s | +15% |
 
-All modes start with three integrity points. God is the toughest mode and is **not invincible**. Brass nodes yield 10 points. Every 50 points increases speed and adds a guard up to five. Three accepted hits end the game with a YOU LOST screen and replay controls. Cover immediately breaks pursuit and silences the visibility alarm.
+All modes start with three integrity points. God is the toughest mode and is **not invincible**. Brass nodes yield 10 points. Every 50 points increases speed and adds a regular guard up to five. Every 100 points also adds a Warden boss, even after the regular patrol cap. Wardens have larger hulls, double chevrons, labels, a distinct deployment warning and sound. Their chase speed is at least 204 px/s versus the player's 170 px/s, scales with difficulty/threat, and cover still breaks pursuit. Bosses accumulate until the run ends; replay clears them. Three accepted hits end the game with a YOU LOST screen and replay controls. Cover immediately breaks pursuit and silences the visibility alarm.
 
 ## Technical design and diagnostics
 
@@ -123,9 +123,9 @@ npm test
 npm run test:browser
 ```
 
-`npm test` runs 16 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, patrol spawn audio triggers/cap, theme/music preferences, asset/link and JavaScript syntax checks, and server/deployment routing checks.
+`npm test` runs 17 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, patrol/boss milestones, boss chase speed and cover behavior, spawn audio triggers/cap, theme/music preferences, asset/link and JavaScript syntax checks, and server/deployment routing checks.
 
-`npm run test:browser` requires an installed Chrome/Chromium browser. Set `CHROME_PATH` if it is not found automatically. It verifies all six pages, saved light theme including Canvas pixels, mixer, gameplay, siren visibility/cover triggers, site-wide BGM/phase restoration, pause/game-over continuity, mute and the music control, and responsive layout, then injects failures to verify recovery. OfflineAudioContext renders actual siren/music/spawn/collection waveforms to assert increased BGM signal, silent mute and bounded peaks; this checks synthesis, not the user's speakers or perceived loudness. It uses a fresh temporary profile; screenshots go to ignored `artifacts/screenshots/`. No test dependencies are installed. Press T in-game to run the same 17 isolated model cases and inspect velocity vectors, LOS, distances, whiskers and frame timing.
+`npm run test:browser` requires an installed Chrome/Chromium browser. Set `CHROME_PATH` if it is not found automatically. It verifies all six pages, saved light theme including Canvas pixels, mixer, gameplay, siren visibility/cover triggers, site-wide BGM/phase restoration, pause/game-over continuity, mute and the music control, and responsive layout, then injects failures to verify recovery. OfflineAudioContext renders actual siren/music/patrol/boss/collection waveforms to assert increased BGM signal, silent mute and bounded peaks; this checks synthesis, not the user's speakers or perceived loudness. It uses a fresh temporary profile; screenshots go to ignored `artifacts/screenshots/`. No test dependencies are installed. Press T in-game to run the same 17 isolated model cases and inspect velocity vectors, LOS, distances, whiskers and frame timing.
 
 ## Deployment
 

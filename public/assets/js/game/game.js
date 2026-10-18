@@ -250,13 +250,17 @@
       let direction = this.path.length ? this.path[0].sub(this.pos).normalized() : new Vector2D();
       // Close combat stops orbiting but preserves a short, visible lunge.
       if (hunting && this.pos.distance(game.player.pos) < 24 && this.state !== 'ATTACK') direction = new Vector2D();
-      const speed = CONFIG.ENEMY_SPEED * this.difficulty.speed * game.speedMultiplier * (this.state === 'ATTACK' ? 2.5 : hunting ? 1.35 : 1);
+      const speed = this.movementSpeed(game);
       this.vel = this.vel.lerp(this.steer(direction, game.walls).scale(speed), 1 - Math.exp(-12 * dt));
       moveBody(this, this.vel.scale(dt), game.walls);
       if (this.vel.length() > 1) this.heading = Math.atan2(this.vel.y, this.vel.x);
       if (this.state === 'ATTACK' && circlesTouch(this.pos, this.radius + 3, game.player.pos, game.player.radius) && hasSight(this.pos, game.player.pos, game.walls)) {
         if (game.player.damage()) game.onCaught(this);
       }
+    }
+    movementSpeed(game) {
+      const hunting = this.state === 'CHASE' || this.state === 'ATTACK';
+      return CONFIG.ENEMY_SPEED * this.difficulty.speed * game.speedMultiplier * (this.state === 'ATTACK' ? 2.5 : hunting ? 1.35 : 1);
     }
     draw(ctx, walls) {
       const color = palette().states[this.state];
@@ -270,12 +274,27 @@
       ctx.globalAlpha = 0.42; ctx.strokeStyle = color; ctx.setLineDash([4, 6]); ctx.stroke(); ctx.restore();
       drawHull(ctx, this, color);
       ctx.font = '10px "Segoe UI", Arial, sans-serif'; ctx.fillStyle = color; ctx.textAlign = 'center';
-      ctx.fillText(`STATE: ${this.state}`, clamp(this.pos.x, 48, 752), Math.max(12, this.pos.y - 23)); ctx.textAlign = 'left';
+      ctx.fillText(`${this.isBoss ? 'WARDEN / ' : 'STATE: '}${this.state}`, clamp(this.pos.x, 60, 740), Math.max(12, this.pos.y - (this.isBoss ? 30 : 23))); ctx.textAlign = 'left';
+    }
+  }
+
+  class Boss extends Enemy {
+    constructor(id, waypoints, difficulty) {
+      super(id, waypoints, difficulty); this.isBoss = true; this.radius = 17;
+    }
+    movementSpeed(game) {
+      const hunting = this.state === 'CHASE' || this.state === 'ATTACK';
+      // Even Easy's first boss outruns the player's full-speed movement.
+      return hunting ? Math.max(CONFIG.PLAYER_SPEED * 1.2, super.movementSpeed(game) * 1.8) : super.movementSpeed(game) * 1.2;
     }
   }
 
   function drawHull(ctx, body, color, alpha = 1) {
     ctx.save(); ctx.globalAlpha = alpha; ctx.translate(body.pos.x, body.pos.y); ctx.rotate(body.heading);
+    if (body.isBoss) {
+      ctx.scale(1.4, 1.4); ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-14,-12); ctx.lineTo(-19,0); ctx.lineTo(-14,12); ctx.moveTo(-20,-12); ctx.lineTo(-25,0); ctx.lineTo(-20,12); ctx.stroke();
+    }
     ctx.fillStyle = color; ctx.strokeStyle = palette().border; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(14, 0); ctx.lineTo(-10, -10); ctx.lineTo(-6, 0); ctx.lineTo(-10, 10); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.strokeStyle = '#eef1ea'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(21, 0); ctx.stroke(); ctx.restore();
@@ -295,6 +314,7 @@
     [[715,85],[715,270],[420,270],[420,85]], [[85,515],[85,300],[380,300],[380,515]],
     [[350,110],[450,110],[450,480],[350,480]] ];
   function makeEnemy(i, difficulty = DIFFICULTIES.medium) { return new Enemy(i + 1, routes[i].map(([x, y]) => new Vector2D(x, y)), difficulty); }
+  function makeBoss(i, difficulty = DIFFICULTIES.medium) { return new Boss(`boss-${i + 1}`, routes[i % routes.length].map(([x,y]) => new Vector2D(x,y)), difficulty); }
 
   class Game {
     constructor(document) {
@@ -318,7 +338,7 @@
       this.difficultyKey = this.selectedDifficulty; this.difficulty = DIFFICULTIES[this.difficultyKey]; this.loadHighScore();
       this.player = new Player(this.difficulty); this.walls = makeWalls();
       this.enemies = Array.from({length:this.difficulty.units}, (_, i) => makeEnemy(i, this.difficulty));
-      this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0;
+      this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0; this.bossNotice = 0;
       this.events = []; this.accumulator = 0; this.alert = false; this.caughtFlash = 0; this.particles = []; this.trail = []; this.trailClock = 0; this.collectPulse = null;
       this.sound.setAlert(false); this.node = this.spawnNode(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
     }
@@ -449,8 +469,9 @@
       const nextThreat = 1 + Math.floor(this.score / 50);
       if (nextThreat > this.threat) {
         this.threat = nextThreat; this.speedMultiplier = Math.pow(1 + this.difficulty.escalation, this.threat - 1);
-        if (this.enemies.length < CONFIG.MAX_ENEMIES) {
-          const enemy = makeEnemy(this.enemies.length, this.difficulty);
+        const patrolCount = this.enemies.filter(e => !e.isBoss).length;
+        if (patrolCount < CONFIG.MAX_ENEMIES) {
+          const enemy = makeEnemy(patrolCount, this.difficulty);
           // A new security unit deploys at the safest point on its own route.
           enemy.pos = enemy.waypoints.reduce((a, b) => a.distance(this.player.pos) > b.distance(this.player.pos) ? a : b);
           enemy.pos = new Vector2D(enemy.pos.x, enemy.pos.y); this.enemies.push(enemy);
@@ -458,12 +479,20 @@
         }
         this.log(`THREAT ${String(this.threat).padStart(2, '0')} / SPEED +${Math.round(this.difficulty.escalation * 100)}% / ${this.enemies.length} UNITS`);
       }
+      if (this.score % 100 === 0) {
+        const boss = makeBoss(this.enemies.filter(e => e.isBoss).length, this.difficulty);
+        const clearWaypoints = boss.waypoints.filter(p => this.enemies.every(e => p.distance(e.pos) > boss.radius + e.radius + 12));
+        const waypoint = (clearWaypoints.length ? clearWaypoints : boss.waypoints).reduce((a,b) => a.distance(this.player.pos) > b.distance(this.player.pos) ? a : b);
+        boss.pos = new Vector2D(waypoint.x,waypoint.y); this.enemies.push(boss);
+        this.bossNotice = 3; this.sound.cue('boss');
+        this.log(`WARDEN DEPLOYED / ${this.score} POINTS / BREAK SIGHT TO ESCAPE`);
+      }
       this.node = this.spawnNode();
     }
     update(dt) {
       if (!Number.isFinite(dt) || dt<0) throw new RangeError('Simulation timestep must be finite and nonnegative');
       if (!Number.isSafeInteger(this.score) || this.score<0 || !Number.isInteger(this.player.hp) || this.player.hp<0 || this.player.hp>3 || !Number.isFinite(this.node.x) || !Number.isFinite(this.node.y)) throw new Error('Invalid score, health or collectible state');
-      this.time += dt; this.caughtFlash = Math.max(0, this.caughtFlash - dt); this.player.update(dt, this.keys, this.walls,this.touchControls?.vector);
+      this.time += dt; this.bossNotice = Math.max(0, (this.bossNotice || 0) - dt); this.caughtFlash = Math.max(0, this.caughtFlash - dt); this.player.update(dt, this.keys, this.walls,this.touchControls?.vector);
       for (const enemy of this.enemies) enemy.update(dt, this);
       if (this.player.hp <= 0) { this.mode = 'OVER'; this.sound.cue('over'); this.keys.clear(); this.updateAlert(); this.saveHighScore(); this.log(`YOU LOST / FINAL SCORE ${this.score}`); this.showOverlay(); return; }
       this.updateAlert();
@@ -518,6 +547,13 @@
         ctx.save(); ctx.fillStyle = '#B05252'; ctx.globalAlpha = this.caughtFlash > 0 ? 0.13 * this.caughtFlash / 0.3 : 0.025;
         ctx.fillRect(0, 0, 800, 600); ctx.globalAlpha = 1; ctx.strokeStyle = '#B05252'; ctx.lineWidth = this.caughtFlash > 0 ? 8 : 3; ctx.strokeRect(2, 2, 796, 596); ctx.restore();
       }
+      if (this.bossNotice > 0) {
+        ctx.save(); ctx.fillStyle = palette().panel; ctx.fillRect(210,90,380,54);
+        ctx.strokeStyle = palette().states.CHASE; ctx.strokeRect(210,90,380,54);
+        ctx.textAlign = 'center'; ctx.fillStyle = palette().text; ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
+        ctx.fillText('WARDEN DEPLOYED',400,112); ctx.font = '12px "Segoe UI", Arial, sans-serif';
+        ctx.fillText('Faster than you. Break line of sight.',400,132); ctx.restore();
+      }
       if (this.diagnostics) this.drawDiagnostics(ctx);
     }
     drawDiagnostics(ctx) {
@@ -569,8 +605,8 @@
     return suite(api, report);
   }
 
-  const api = { CONFIG, DIFFICULTIES, Vector2D, Player, Enemy, Obstacle, FloatingText, SoundSystem, Game,
-    findPath, hasSight, sightPolygon, circlesTouch, moveBody, makeWalls, makeEnemy, runTests };
+  const api = { CONFIG, DIFFICULTIES, Vector2D, Player, Enemy, Boss, Obstacle, FloatingText, SoundSystem, Game,
+    findPath, hasSight, sightPolygon, circlesTouch, moveBody, makeWalls, makeEnemy, makeBoss, runTests };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.Sector09 = api;
   // Startup is owned by core/bootstrap.js after dependency and DOM validation.

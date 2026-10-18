@@ -56,18 +56,18 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     assert.equal(await ev('sector09Game.sound.musicTimer!==null'),true,'BGM did not start');
     const renderedAudio=await ev(`(async()=>{
       const rms={};
-      for(const type of ['siren','music','spawn','collect','muted']){
+      for(const type of ['siren','music','spawn','boss','collect','muted']){
         const offline=new OfflineAudioContext(1,26460,22050),s=new SectorSoundSystem();
         s.context=new Proxy(offline,{get(target,key){if(key==='state')return 'running';const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
         s.masterGain=offline.createGain();s.effectsGain=offline.createGain();s.sirenGain=offline.createGain();s.musicGain=offline.createGain();
         s.masterGain.connect(offline.destination);for(const bus of [s.effectsGain,s.sirenGain,s.musicGain])bus.connect(s.masterGain);
         s.applySettings({master:1,effects:1,siren:1,music:1,muted:type==='muted'});
-        if(type==='siren'||type==='muted')s.setAlert(true);else if(type==='music')s.scheduleMusicStep(0,0);else if(type==='spawn')s.cue('spawn');else s.click();
+        if(type==='siren'||type==='muted')s.setAlert(true);else if(type==='music')s.scheduleMusicStep(0,0);else if(type==='spawn'||type==='boss')s.cue(type);else s.click();
         const samples=(await offline.startRendering()).getChannelData(0);let sum=0,peak=0;for(const n of samples){sum+=n*n;peak=Math.max(peak,Math.abs(n));}rms[type]={rms:Math.sqrt(sum/samples.length),peak};
       }
       return rms;
     })()`);
-    assert.ok(renderedAudio.siren.rms>0.012,'Siren waveform too quiet');assert.ok(renderedAudio.music.rms>0.025,'BGM synthesis output still too low');for(const type of ['music','spawn','collect'])assert.ok(renderedAudio[type].rms>0.002,type+' produced no audible signal');assert.equal(renderedAudio.muted.rms,0);for(const value of Object.values(renderedAudio))assert.ok(value.peak<0.8,'Audio clipping');
+    assert.ok(renderedAudio.siren.rms>0.012,'Siren waveform too quiet');assert.ok(renderedAudio.music.rms>0.025,'BGM synthesis output still too low');for(const type of ['music','spawn','boss','collect'])assert.ok(renderedAudio[type].rms>0.002,type+' produced no audible signal');assert.equal(renderedAudio.muted.rms,0);for(const value of Object.values(renderedAudio))assert.ok(value.peak<0.8,'Audio clipping');
     console.log('PASS: actual rendered siren/BGM/spawn/effects waveforms, mute silence and peak levels.');
     await ev(`(()=>{const g=sector09Game;g.enemies=[Sector09.makeEnemy(0)];const e=g.enemies[0];e.pos=new Sector09.Vector2D(130,180);g.player.pos=new Sector09.Vector2D(130,240);e.transition('CHASE');g.updateAlert()})()`);
     assert.equal(await ev('sector09Game.alert && !!sector09Game.sound.siren'),true,'Visible player did not trigger siren');
@@ -91,6 +91,8 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     for(const [width,height] of [[714,715],[390,844]]){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await checkPlayLayout();}
     await send('Emulation.setDeviceMetricsOverride',{width:1100,height:950,deviceScaleFactor:1,mobile:false});
     await ev('sector09Game.collect();sector09Game.togglePause()');assert.equal(await ev('Sector09.runTests(false).every(t=>t.pass)'),true);
+    assert.equal(await ev(`(()=>{const g=sector09Game;g.selectedDifficulty='easy';g.reset();g.score=90;g.collect();g.mode='RUNNING';g.showOverlay();g.updateHUD();const boss=g.enemies.find(e=>e.isBoss);g.draw();return g.score===100&&g.bossNotice===3&&boss instanceof Sector09.Boss&&boss.movementSpeed({speedMultiplier:g.speedMultiplier})>0&&!g.walls.some(w=>w.overlaps(boss.pos,boss.radius))})()`),true,'Boss deployment failed in browser');
+    const bossShot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'boss-deployment.png'),Buffer.from(bossShot.data,'base64'));
     await ev('sector09Game.player.hp=0;sector09Game.update(Sector09.CONFIG.STEP)');assert.equal(await ev('sector09Game.mode==="OVER" && sector09Game.sound.musicTimer!==null'),true,'Game over stopped site music');
     assert.equal(runtimeErrors.length,0,'Healthy page runtime exceptions');
     console.log('PASS: all pages, gameplay, saved preferences, audio mixer/previews, browser self-tests.');

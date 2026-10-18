@@ -63,6 +63,7 @@
       if (type === 'start') { this.tone(160,240,0.15,0.1,'triangle'); this.tone(240,360,0.18,0.085,'sine',0.13); }
       else if (type === 'over') { this.tone(240,110,0.25,0.11,'triangle'); this.tone(110,55,0.35,0.085,'sine',0.2); }
       else if(type==='spawn') {this.tone(196,196,0.12,0.1,'triangle');this.tone(294,294,0.12,0.1,'triangle',0.15);this.tone(392,294,0.25,0.09,'sine',0.3);}
+      else if(type==='boss') {this.tone(180,90,0.3,0.16,'triangle');this.tone(180,90,0.3,0.16,'triangle',0.35);this.tone(110,55,0.5,0.14,'sine',0.7);}
       else this.tone(type === 'menu' ? 160 : 200,120,0.045,0.04,'triangle');
     }
     /** An audible but restrained carrier sweeps between 300 and 540 Hz. One siren serves

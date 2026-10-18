@@ -33,11 +33,29 @@ test('A fatal frame error silences alert audio, clears input and stops schedulin
   game.frame(20);game.frame(21);assert.equal(game.failed,true);assert.equal(game.mode,'ERROR');assert.equal(game.keys.size,0);assert.equal(frames,0);assert.equal(silenced,1);assert.equal(reports[0][0],'GAME_LOOP');
 });
 test('Patrol deployment cue plays for each new guard and stops at the unit cap',()=>{
-  const api=require('../public/assets/js/game/game.js'),game=Object.create(api.Game.prototype);let spawns=0;
-  Object.assign(game,{difficulty:api.DIFFICULTIES.medium,player:new api.Player(),walls:api.makeWalls(),enemies:[api.makeEnemy(0),api.makeEnemy(1)],score:0,highScore:0,threat:1,speedMultiplier:1,texts:[],events:[],time:0,sound:{click(){},cue(type){assert.equal(type,'spawn');spawns++;}},saveHighScore(){}});
+  const api=require('../public/assets/js/game/game.js'),game=Object.create(api.Game.prototype);let spawns=0,bosses=0;
+  Object.assign(game,{difficulty:api.DIFFICULTIES.medium,player:new api.Player(),walls:api.makeWalls(),enemies:[api.makeEnemy(0),api.makeEnemy(1)],score:0,highScore:0,threat:1,speedMultiplier:1,texts:[],events:[],time:0,sound:{click(){},cue(type){assert.ok(['spawn','boss'].includes(type));if(type==='spawn')spawns++;else bosses++;}},saveHighScore(){}});
   game.node=game.spawnNode();for(let i=0;i<4;i++)game.collect();assert.equal(spawns,0);
   game.collect();assert.equal(spawns,1);assert.equal(game.enemies.length,3);
-  for(let i=0;i<20;i++)game.collect();assert.equal(spawns,3);assert.equal(game.enemies.length,5);
+  for(let i=0;i<4;i++)game.collect();assert.equal(bosses,0);assert.equal(game.score,90);
+  game.collect();assert.equal(bosses,1);assert.equal(game.bossNotice,3);
+  for(let i=0;i<15;i++)game.collect();assert.equal(spawns,3);assert.equal(bosses,2);assert.equal(game.enemies.filter(e=>!e.isBoss).length,5);
+  for(let i=0;i<5;i++)game.collect();assert.equal(bosses,3,'Boss still deploys after patrol cap');
+  for(const boss of game.enemies.filter(e=>e.isBoss))assert.equal(game.walls.some(w=>w.overlaps(boss.pos,boss.radius)),false);
+});
+
+test('Bosses outrun the player in every mode, respect cover and reset between runs',()=>{
+  const api=require('../public/assets/js/game/game.js');
+  for(const difficulty of Object.values(api.DIFFICULTIES)){
+    const boss=api.makeBoss(0,difficulty),player=new api.Player(difficulty),game={player,walls:[],speedMultiplier:1,onCaught(){}};
+    boss.pos=new api.Vector2D(100,100);player.pos=new api.Vector2D(250,100);boss.transition('CHASE');
+    assert.ok(boss.movementSpeed(game)>api.CONFIG.PLAYER_SPEED);
+    // Chase a moving player long enough to measure actual velocity after acceleration.
+    for(let i=0;i<60;i++){player.pos=player.pos.add(new api.Vector2D(api.CONFIG.PLAYER_SPEED/120,0));boss.update(1/120,game);}
+    assert.ok(boss.vel.length()>api.CONFIG.PLAYER_SPEED);
+    boss.pos=new api.Vector2D(140,180);player.pos=new api.Vector2D(315,180);boss.transition('CHASE');boss.decide(player,api.makeWalls());assert.equal(boss.state,'RETURN');assert.equal(boss.canSee(player,api.makeWalls()),false);
+    const run=Object.create(api.Game.prototype);Object.assign(run,{selectedDifficulty:Object.keys(api.DIFFICULTIES).find(k=>api.DIFFICULTIES[k]===difficulty),sound:{setAlert(){}},loadHighScore(){}});run.enemies=[boss];run.bossNotice=3;run.reset();assert.equal(run.enemies.some(e=>e.isBoss),false);assert.equal(run.bossNotice,0);
+  }
 });
 test('Theme and music preferences validate, clamp and default for older saved settings',()=>{
   const {api}=preferences({getItem:()=>'{"difficulty":"hard"}'});assert.equal(api.read().theme,'dark');assert.equal(api.read().music,1);

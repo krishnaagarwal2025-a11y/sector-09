@@ -543,6 +543,17 @@
       const nodeSize = this.motion ? 12 + Math.sin(this.time*3)*1.5 : 12;
       ctx.strokeStyle = palette().node; ctx.lineWidth = 1; ctx.strokeRect(this.node.x - nodeSize, this.node.y - nodeSize, nodeSize*2, nodeSize*2);
       this.player.draw(ctx, this.time); this.texts.forEach(t => t.draw(ctx));
+      if (this.time < 5 && (this.mode === 'RUNNING' || this.mode === 'PAUSED')) {
+        const x = clamp(this.player.pos.x, 62, 738), y = Math.max(72, this.player.pos.y - 55);
+        ctx.save(); ctx.globalAlpha = this.motion ? Math.min(1, 5 - this.time) : 1;
+        ctx.fillStyle = palette().panel; ctx.strokeStyle = palette().player; ctx.lineWidth = 1.5;
+        ctx.fillRect(x - 59, y - 20, 118, 28); ctx.strokeRect(x - 59, y - 20, 118, 28);
+        ctx.fillStyle = palette().text; ctx.font = 'bold 12px "Segoe UI", Arial, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('YOU ARE HERE', x, y - 2);
+        ctx.beginPath(); ctx.moveTo(x, y + 8); ctx.lineTo(this.player.pos.x, this.player.pos.y - 17); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(this.player.pos.x - 4, this.player.pos.y - 22); ctx.lineTo(this.player.pos.x, this.player.pos.y - 17); ctx.lineTo(this.player.pos.x + 4, this.player.pos.y - 22); ctx.stroke();
+        ctx.restore();
+      }
       if (this.alert || this.caughtFlash > 0) {
         ctx.save(); ctx.fillStyle = '#B05252'; ctx.globalAlpha = this.caughtFlash > 0 ? 0.13 * this.caughtFlash / 0.3 : 0.025;
         ctx.fillRect(0, 0, 800, 600); ctx.globalAlpha = 1; ctx.strokeStyle = '#B05252'; ctx.lineWidth = this.caughtFlash > 0 ? 8 : 3; ctx.strokeRect(2, 2, 796, 596); ctx.restore();

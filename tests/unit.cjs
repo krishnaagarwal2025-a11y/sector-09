@@ -40,10 +40,18 @@ test('Patrol deployment cue plays for each new guard and stops at the unit cap',
   for(let i=0;i<20;i++)game.collect();assert.equal(spawns,3);assert.equal(game.enemies.length,5);
 });
 test('Theme and music preferences validate, clamp and default for older saved settings',()=>{
-  const {api}=preferences({getItem:()=>'{"difficulty":"hard"}'});assert.equal(api.read().theme,'dark');assert.equal(api.read().music,0.35);
+  const {api}=preferences({getItem:()=>'{"difficulty":"hard"}'});assert.equal(api.read().theme,'dark');assert.equal(api.read().music,1);
   assert.equal(api.normalize({theme:'light',music:2}).music,1);assert.equal(api.normalize({theme:'light'}).theme,'light');assert.equal(api.normalize({theme:'broken',music:NaN}).theme,'dark');
 });
 test('Light and dark canvas palettes are distinct and cover every enemy state',()=>{
   const {light,dark}=require('../public/assets/js/core/theme.js');assert.notEqual(light.background,dark.background);for(const key of Object.keys(dark)){assert.ok(light[key],key);}for(const state of ['PATROL','CHASE','ATTACK','RETURN'])assert.ok(light.states[state]);
 });
+test('BGM upgrades existing volume to maximum once and preserves later manual changes',()=>{
+  let saved=JSON.stringify({music:0.35,master:0.7,muted:true});
+  const storage={getItem:()=>saved,setItem:(_,value)=>{saved=value;}};
+  const first=preferences(storage);assert.equal(first.api.read().music,1);assert.equal(first.api.read().master,0.7);assert.equal(first.api.read().muted,true);
+  assert.equal(JSON.parse(saved).musicVolumeRevision,1);
+  first.api.save({music:0.4});assert.equal(preferences(storage).api.read().music,0.4);
+});
+
 

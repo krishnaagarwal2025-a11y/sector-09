@@ -1,7 +1,7 @@
 /* Shared, validated local preferences. The game works when storage is denied. */
 (function (root) {
   'use strict';
-  const defaults = Object.freeze({ difficulty:'medium', fullscreen:true, motion:true, theme:'dark', master:0.85, effects:0.9, siren:0.7, music:0.35, muted:false });
+  const defaults = Object.freeze({ difficulty:'medium', fullscreen:true, motion:true, theme:'dark', master:0.85, effects:0.9, siren:0.7, music:1, musicVolumeRevision:1, muted:false });
   let memory = { ...defaults }, loaded = false, persistent = true;
   const warn = (code,error,message) => root.SectorErrors?.report(code,error,{message});
   function normalize(value) {
@@ -25,15 +25,23 @@
         if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Expected a settings object');
         const normalized = normalize(value);
         if (Object.keys(defaults).some(k => k in value && value[k] !== normalized[k])) warn('PREFERENCES_INVALID',new Error('Invalid saved setting values'),'Some saved settings were invalid and have been reset.');
+        // Apply the requested maximum once to existing browsers. Subsequent
+        // manual slider changes remain saved instead of being reset on reload.
+        const upgradeMusic=value.musicVolumeRevision!==defaults.musicVolumeRevision;
+        if(upgradeMusic)normalized.music=1;
         memory = normalized;
+        if(upgradeMusic)persist();
       } catch(error) { memory={...defaults};warn('PREFERENCES_CORRUPT',error,'Saved settings could not be read. Default settings have been restored.'); }
     }
     return { ...memory };
   }
-  function save(patch) {
-    memory = normalize({ ...read(), ...patch });
+  function persist() {
     try { root.localStorage.setItem('sector09.preferences', JSON.stringify(memory));persistent=true; }
     catch(error) { persistent=false;warn('PREFERENCES_WRITE',error,'Settings could not be saved. Changes will last for this page session.'); }
+  }
+  function save(patch) {
+    memory = normalize({ ...read(), ...patch });
+    persist();
     return { ...memory };
   }
   root.addEventListener?.('storage', event => { if(event.key === 'sector09.preferences' || event.key === null) loaded=false; });

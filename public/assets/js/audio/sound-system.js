@@ -2,9 +2,9 @@
 (function(root) {
 'use strict';
   class SoundSystem {
-    constructor() { this.context = null; this.siren = null; this.musicTimer=null;this.musicNodes=new Set();this.musicStep=0; this.applySettings(root.SectorPreferences?.read() || { master:0.85, effects:0.9, siren:0.7, music:0.35, muted:false }); }
+    constructor() { this.context = null; this.siren = null; this.musicTimer=null;this.musicNodes=new Set();this.musicStep=0; this.applySettings(root.SectorPreferences?.read() || { master:0.85, effects:0.9, siren:0.7, music:1, muted:false }); }
     applySettings(settings) {
-      settings = root.SectorPreferences?.normalize(settings) || {master:0.85,effects:0.9,siren:0.7,music:0.35,muted:false,...settings};
+      settings = root.SectorPreferences?.normalize(settings) || {master:0.85,effects:0.9,siren:0.7,music:1,muted:false,...settings};
       this.settings = settings; this.muted = settings.muted;
       try {
       if (this.masterGain) {
@@ -138,3 +138,4 @@
 root.SectorSoundSystem = SoundSystem;
 if(typeof module !== 'undefined' && module.exports) module.exports = SoundSystem;
 })(typeof window !== 'undefined' ? window : globalThis);
+

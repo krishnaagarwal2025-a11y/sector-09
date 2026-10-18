@@ -8,7 +8,22 @@ A zero-dependency, top-down tactical stealth and arcade game built with HTML5 Ca
 
 Production is hosted on Vercel at **https://sector-09.vercel.app**. The Vercel project is connected to the GitHub repository. The repository is private; the production game is publicly accessible. For manual updates from an authenticated CLI, run `npx vercel deploy --prod` from this folder. No build step or runtime dependencies are needed.
 
-Open **index.html** in a current desktop browser. No installation, build step, server, network connection, or external assets are required. Keep `game.js` beside `index.html`.
+Open **index.html** in a current desktop browser to enter the home menu, then choose **Play**. No installation, build step, server, network connection, or external assets are required. Keep the project files together. **play.html** also opens the game directly.
+
+## Home menu and pages
+
+| Page | Purpose |
+| --- | --- |
+| `index.html` | Home menu: Play, Settings, Sound, Field manual, Exit |
+| `play.html` | Game, difficulty selection, pause and replay |
+| `settings.html` | Default difficulty, fullscreen on start, animation preferences |
+| `sound.html` | Master, effects and siren volume, mute, collection/siren/contact previews |
+| `controls.html` | Keyboard controls and gameplay rules |
+| `exit.html` | End-session screen with return-home and close-tab actions |
+
+Pages share `menu.css`, `menu.js`, and validated local preferences in `preferences.js`. Settings save automatically under `sector09.preferences`; when storage is blocked, each page remains usable with defaults and in-memory changes. Browsers can restrict persistence across separately opened `file:` pages; use the deployed HTTPS site for consistent cross-page preferences. Closing a tab is browser-controlled, so Exit provides a clear manual-close fallback. Navigating away from gameplay ends the current run; high scores are saved as you collect.
+
+Audio has independent master/effects/siren gain buses, soft note envelopes, a two-part collection cue, distinct start/pause/game-over cues, quiet siren and layered contact sound. New effects include short movement trails, collection pulses, and small collection/contact debris. Animation preferences and the system reduced-motion setting disable decorative movement. Audio remains gated behind user interaction.
 
 Press **Space**, or click **Initialize**, to begin. The logical playfield is always 800 × 600; the page scales it to fit smaller displays. A physical keyboard is required for movement.
 
@@ -52,7 +67,8 @@ All modes retain wall concealment, the five-guard cap, scoring, alarms, fullscre
 
 | File | Responsibility |
 | --- | --- |
-| `index.html` | Flat engineering interface, HUD, accessible start/resume/reset button, canvas, controls, and status log |
+| `index.html` | Home menu with links to independent game/settings/sound/manual/exit pages |
+| `play.html` | Flat engineering game interface, HUD, accessible controls, canvas, and log |
 | `game.js` | Commented object-oriented simulation, collision and navigation math, drawing, audio, persistence, and unit tests |
 | `README.md` | Setup, controls, technical design, assessment mapping, and verification instructions |
 
@@ -133,6 +149,8 @@ The 17 cases cover:
 Earlier browser checks verified cover ending pursuit and stopping the siren, visible alert activation, catch feedback, mute/unmute, pause, and fullscreen entry/exit without runtime exceptions. The initial version also passed initialization, keyboard movement, live collection, escalation, game-over/reset checks, and a 90-second patrol simulation. Screenshots were inspected for layout and visibility feedback. Audio graph activation and lifecycle were checked programmatically; perceived volume depends on the user's output device.
 
 Difficulty update validation: all 17 tests passed in Node.js and Chrome. Browser interaction verified selection and starting all four modes, YOU LOST screens, switching modes from pause, per-mode record storage including legacy Medium fallback, and native keyboard interaction with the selector. No runtime exceptions were observed. Selection and loss screens were visually reviewed, including the 718 × 715 viewport.
+
+Menu update validation: all six pages passed browser navigation checks with no runtime exceptions. Verified saved difficulty/display settings across navigation, volume sliders and sound preview actions, game audio settings, collection effects, and all 17 gameplay tests. The five menu pages were checked at 390 px width without horizontal overflow. Preference validation also covered invalid settings, clamped volume ranges, and storage-denied fallback.
 
 For a manual acceptance pass, initialize, collect a node, move diagonally against a wall, observe all four enemy states, toggle diagnostics/audio, pause/resume, lose three integrity points, and reset. Reload to check the high score. Test local-file storage/audio behavior in the browser intended for submission; these optional APIs can be restricted by browser policy.
 

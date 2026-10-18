@@ -164,7 +164,10 @@
       const direction = new Vector2D(Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft')),
         Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'))).normalized();
       this.vel = direction.scale(CONFIG.PLAYER_SPEED);
-      if (direction.length()) this.heading = Math.atan2(direction.y, direction.x);
+      if (direction.length()) {
+        const target = Math.atan2(direction.y, direction.x), delta = target - this.heading;
+        this.heading += Math.atan2(Math.sin(delta),Math.cos(delta)) * (1-Math.exp(-18*dt));
+      }
       moveBody(this, this.vel.scale(dt), walls); this.invulnerable = Math.max(0, this.invulnerable - dt);
     }
     damage() { if (this.invulnerable > 0 || this.hp <= 0) return false; this.hp--; this.invulnerable = this.difficulty.grace; return true; }
@@ -274,24 +277,50 @@
   }
 
   class SoundSystem {
-    constructor() { this.context = null; this.muted = false; this.siren = null; }
+    constructor() { this.context = null; this.siren = null; this.applySettings(root.SectorPreferences?.read() || { master:0.7, effects:0.8, siren:0.5, muted:false }); }
+    applySettings(settings) {
+      this.settings = settings; this.muted = settings.muted;
+      if (this.masterGain) {
+        const now = this.context.currentTime;
+        this.masterGain.gain.setTargetAtTime(this.muted ? 0 : settings.master, now, 0.02);
+        this.effectsGain.gain.setTargetAtTime(settings.effects, now, 0.02);
+        this.sirenGain.gain.setTargetAtTime(settings.siren, now, 0.02);
+      }
+    }
     /** Audio is created/resumed only from a user gesture. Unsupported audio is silent. */
     unlock() {
       try {
         const Audio = root.AudioContext || root.webkitAudioContext;
-        if (!this.context && Audio) this.context = new Audio();
+        if (!this.context && Audio) {
+          this.context = new Audio(); this.masterGain = this.context.createGain();
+          this.effectsGain = this.context.createGain(); this.sirenGain = this.context.createGain();
+          this.effectsGain.connect(this.masterGain); this.sirenGain.connect(this.masterGain); this.masterGain.connect(this.context.destination);
+          this.applySettings(this.settings);
+        }
         if (this.context && this.context.state === 'suspended') this.context.resume().catch(() => {});
       } catch (_) { /* Browser policy can disable audio without disabling play. */ }
     }
     click() {
+      this.tone(300, 170, 0.08, 0.065, 'triangle');
+      this.tone(440, 330, 0.12, 0.04, 'sine', 0.07);
+    }
+    /** Short envelopes avoid clicks; slight pitch movement gives mechanical cues
+     * distinct identities without samples, loud oscillators, or external assets.
+     */
+    tone(start, end, duration, volume, type = 'sine', delay = 0) {
       if (this.muted || !this.context || this.context.state !== 'running') return;
       try {
-        const now = this.context.currentTime, oscillator = this.context.createOscillator(), gain = this.context.createGain();
-        oscillator.type = 'triangle'; oscillator.frequency.setValueAtTime(180, now); oscillator.frequency.exponentialRampToValueAtTime(80, now + 0.06);
-        gain.gain.setValueAtTime(0.055, now); gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
-        oscillator.connect(gain); gain.connect(this.context.destination); oscillator.start(now); oscillator.stop(now + 0.08);
+        const now = this.context.currentTime + delay, oscillator = this.context.createOscillator(), gain = this.context.createGain();
+        oscillator.type = type; oscillator.frequency.setValueAtTime(start, now); oscillator.frequency.exponentialRampToValueAtTime(end, now + duration);
+        gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(volume, now + 0.008); gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+        oscillator.connect(gain); gain.connect(this.effectsGain); oscillator.start(now); oscillator.stop(now + duration);
         oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
       } catch (_) { /* Audio device removal must not stop simulation. */ }
+    }
+    cue(type) {
+      if (type === 'start') { this.tone(160,240,0.15,0.06,'triangle'); this.tone(240,360,0.18,0.05,'sine',0.13); }
+      else if (type === 'over') { this.tone(240,110,0.25,0.065,'triangle'); this.tone(110,55,0.35,0.05,'sine',0.2); }
+      else this.tone(type === 'menu' ? 160 : 200,120,0.045,0.025,'triangle');
     }
     /** A quiet sine carrier sweeps between 175 and 265 Hz. One shared siren serves
      * every visible guard; gaining more observers never stacks the volume.
@@ -312,7 +341,7 @@
         const depth = this.context.createGain(), gain = this.context.createGain(), now = this.context.currentTime;
         carrier.type = 'sine'; carrier.frequency.value = 220;
         lfo.type = 'sine'; lfo.frequency.value = 0.65; depth.gain.value = 45;
-        lfo.connect(depth); depth.connect(carrier.frequency); carrier.connect(gain); gain.connect(this.context.destination);
+        lfo.connect(depth); depth.connect(carrier.frequency); carrier.connect(gain); gain.connect(this.sirenGain);
         gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(0.008, now + 0.18);
         carrier.start(); lfo.start(); this.siren = { carrier, lfo, depth, gain };
       } catch (_) { /* Optional audio never interrupts the simulation. */ }
@@ -328,7 +357,7 @@
           const tone = this.context.createOscillator(), gain = this.context.createGain();
           tone.type = type; tone.frequency.setValueAtTime(start, now); tone.frequency.exponentialRampToValueAtTime(end, now + duration);
           gain.gain.setValueAtTime(0, now); gain.gain.linearRampToValueAtTime(volume, now + 0.006); gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-          tone.connect(gain); gain.connect(this.context.destination); tone.start(now); tone.stop(now + duration);
+          tone.connect(gain); gain.connect(this.effectsGain); tone.start(now); tone.stop(now + duration);
           tone.onended = () => { tone.disconnect(); gain.disconnect(); };
         }
       } catch (_) { /* Graceful fallback if the audio output becomes unavailable. */ }
@@ -347,7 +376,10 @@
       this.document = document; this.canvas = document.getElementById('game'); this.ctx = this.canvas.getContext('2d');
       this.ctx.shadowBlur = 0; this.keys = new Set(); this.sound = new SoundSystem(); this.diagnostics = false;
       this.mode = 'READY'; this.highScore = 0; this.persistedHighScore = 0; this.testResults = []; this.time = 0; this.accumulator = 0; this.lastFrame = null; this.frameMs = 16.67;
-      this.selectedDifficulty = 'medium'; this.records = Object.create(null);
+      this.preferences = root.SectorPreferences?.read() || { difficulty:'medium',fullscreen:true,motion:true };
+      this.motion = this.preferences.motion && !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      document.body.classList.toggle('reduced-motion', !this.motion);
+      this.selectedDifficulty = this.preferences.difficulty; this.records = Object.create(null);
       this.reset(); this.bind(); this.showOverlay(); this.updateHUD();
       this.frame = this.frame.bind(this); root.requestAnimationFrame(this.frame);
     }
@@ -356,7 +388,7 @@
       this.player = new Player(this.difficulty); this.walls = makeWalls();
       this.enemies = Array.from({length:this.difficulty.units}, (_, i) => makeEnemy(i, this.difficulty));
       this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0;
-      this.events = []; this.accumulator = 0; this.alert = false; this.caughtFlash = 0;
+      this.events = []; this.accumulator = 0; this.alert = false; this.caughtFlash = 0; this.particles = []; this.trail = []; this.trailClock = 0; this.collectPulse = null;
       this.sound.setAlert(false); this.node = this.spawnNode(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
     }
     bind() {
@@ -371,7 +403,7 @@
         if (key === ' ' && this.mode === 'READY') this.start();
         else if (key === 'r' && this.mode === 'OVER') this.start();
         else if (key === 'p' || key === 'escape') this.togglePause();
-        else if (key === 'm') { this.sound.muted = !this.sound.muted; this.sound.unlock(); this.updateAlert(); }
+        else if (key === 'm') { this.sound.applySettings({ ...this.sound.settings, muted:!this.sound.muted }); root.SectorPreferences?.save({muted:this.sound.muted}); this.sound.unlock(); this.updateAlert(); }
         else if (key === 'f') this.toggleFullscreen();
         else if (key === 't') { this.diagnostics = !this.diagnostics; if (this.diagnostics) { this.testResults = runTests(); this.log(`DIAGNOSTICS / ${this.testResults.filter(t => t.pass).length} OF ${this.testResults.length} PASS`); } }
         this.updateHUD();
@@ -384,6 +416,7 @@
       this.document.getElementById('difficulty').addEventListener('change', event => {
         if (!['READY','OVER'].includes(this.mode) || !DIFFICULTIES[event.target.value]) return;
         this.selectedDifficulty = event.target.value;
+        root.SectorPreferences?.save({difficulty:this.selectedDifficulty});
         if (this.mode === 'READY') this.reset();
         this.showOverlay(); this.updateHUD();
       });
@@ -394,7 +427,7 @@
         this.keys.clear(); this.document.getElementById('fullscreen').textContent = this.document.fullscreenElement ? 'EXIT FULLSCREEN [F]' : 'FULLSCREEN [F]';
       });
     }
-    start() { const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); this.sound.unlock(); if (initial) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
+    start() { const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); this.sound.unlock(); this.sound.cue('start'); if (initial && this.preferences.fullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
     async enterFullscreen() {
       if (this.document.fullscreenElement) return;
       try {
@@ -407,9 +440,10 @@
       catch (_) { this.log('FULLSCREEN UNAVAILABLE / WINDOW VIEW ACTIVE'); }
       this.canvas.focus();
     }
-    togglePause() { if (!['RUNNING', 'PAUSED'].includes(this.mode)) return; this.mode = this.mode === 'RUNNING' ? 'PAUSED' : 'RUNNING'; this.keys.clear(); this.accumulator = 0; this.showOverlay(); if (this.mode === 'RUNNING') this.canvas.focus(); this.updateAlert(); this.updateHUD(); }
+    togglePause() { if (!['RUNNING', 'PAUSED'].includes(this.mode)) return; this.mode = this.mode === 'RUNNING' ? 'PAUSED' : 'RUNNING'; this.sound.cue('pause'); this.keys.clear(); this.accumulator = 0; this.showOverlay(); if (this.mode === 'RUNNING') this.canvas.focus(); this.updateAlert(); this.updateHUD(); }
     onCaught(enemy) {
       this.caughtFlash = 0.3; this.sound.caught();
+      this.burst(this.player.pos, '#B05252', 12);
       this.log(`CONTACT / UNIT ${enemy.id} / INTEGRITY ${this.player.hp} OF 3`);
     }
     /** One visibility condition drives the screen and siren, so hiding and pause
@@ -463,6 +497,8 @@
     collect() {
       this.score += 10; this.highScore = Math.max(this.highScore, this.score); this.saveHighScore();
       this.texts.push(new FloatingText(this.node)); this.sound.click();
+      this.burst(this.node, '#C29B61', 10);
+      if (this.motion) this.collectPulse = { pos:new Vector2D(this.node.x,this.node.y), life:0.5 };
       const nextThreat = 1 + Math.floor(this.score / 50);
       if (nextThreat > this.threat) {
         this.threat = nextThreat; this.speedMultiplier = Math.pow(1 + this.difficulty.escalation, this.threat - 1);
@@ -479,10 +515,32 @@
     update(dt) {
       this.time += dt; this.caughtFlash = Math.max(0, this.caughtFlash - dt); this.player.update(dt, this.keys, this.walls);
       for (const enemy of this.enemies) enemy.update(dt, this);
-      if (this.player.hp <= 0) { this.mode = 'OVER'; this.keys.clear(); this.updateAlert(); this.saveHighScore(); this.log(`YOU LOST / FINAL SCORE ${this.score}`); this.showOverlay(); return; }
+      if (this.player.hp <= 0) { this.mode = 'OVER'; this.sound.cue('over'); this.keys.clear(); this.updateAlert(); this.saveHighScore(); this.log(`YOU LOST / FINAL SCORE ${this.score}`); this.showOverlay(); return; }
       this.updateAlert();
       if (circlesTouch(this.player.pos, this.player.radius, this.node, 7)) this.collect();
       this.texts.forEach(t => t.update(dt)); this.texts = this.texts.filter(t => t.life > 0);
+      this.updateEffects(dt);
+    }
+    burst(pos, color, count) {
+      if (!this.motion) return;
+      for (let i=0;i<count;i++) { const a=i/count*Math.PI*2; this.particles.push({pos:new Vector2D(pos.x,pos.y),vel:new Vector2D(Math.cos(a),Math.sin(a)).scale(30+Math.random()*40),life:0.45,color}); }
+    }
+    updateEffects(dt) {
+      if (!this.motion) return;
+      this.trailClock += dt;
+      if (this.player.vel.length()>1 && this.trailClock>0.045) { this.trailClock=0; this.trail.push({pos:new Vector2D(this.player.pos.x,this.player.pos.y),life:0.22}); }
+      for (const p of this.particles) { p.life-=dt; p.pos=p.pos.add(p.vel.scale(dt)); }
+      for (const p of this.trail) p.life-=dt;
+      this.particles=this.particles.filter(p=>p.life>0); this.trail=this.trail.filter(p=>p.life>0);
+      if(this.collectPulse && (this.collectPulse.life-=dt)<=0) this.collectPulse=null;
+    }
+    drawEffects(ctx) {
+      if (!this.motion) return;
+      ctx.save();
+      for(const p of this.trail) { ctx.globalAlpha=p.life/0.22*0.16; ctx.fillStyle='#5C7A99';ctx.fillRect(p.pos.x-3,p.pos.y-3,6,6); }
+      for(const p of this.particles) {ctx.globalAlpha=p.life/0.45;ctx.fillStyle=p.color;ctx.fillRect(p.pos.x-1.5,p.pos.y-1.5,3,3);}
+      if(this.collectPulse) { const p=this.collectPulse;ctx.globalAlpha=p.life/0.5;ctx.strokeStyle='#C29B61';ctx.lineWidth=1;ctx.beginPath();ctx.arc(p.pos.x,p.pos.y,10+(0.5-p.life)*55,0,Math.PI*2);ctx.stroke(); }
+      ctx.restore();
     }
     updateHUD() {
       const get = id => this.document.getElementById(id);
@@ -501,8 +559,10 @@
       for (let x = 40; x < 800; x += 40) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, 600); }
       for (let y = 40; y < 600; y += 40) { ctx.moveTo(0, y + 0.5); ctx.lineTo(800, y + 0.5); } ctx.stroke();
       this.enemies.forEach(e => e.draw(ctx, this.walls)); this.walls.forEach((w, i) => w.draw(ctx, i));
+      this.drawEffects(ctx);
       ctx.fillStyle = '#C29B61'; ctx.beginPath(); ctx.moveTo(this.node.x, this.node.y - 7); ctx.lineTo(this.node.x + 7, this.node.y); ctx.lineTo(this.node.x, this.node.y + 7); ctx.lineTo(this.node.x - 7, this.node.y); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#C29B61'; ctx.lineWidth = 1; ctx.strokeRect(this.node.x - 12, this.node.y - 12, 24, 24);
+      const nodeSize = this.motion ? 12 + Math.sin(this.time*3)*1.5 : 12;
+      ctx.strokeStyle = '#C29B61'; ctx.lineWidth = 1; ctx.strokeRect(this.node.x - nodeSize, this.node.y - nodeSize, nodeSize*2, nodeSize*2);
       this.player.draw(ctx, this.time); this.texts.forEach(t => t.draw(ctx));
       if (this.alert || this.caughtFlash > 0) {
         ctx.save(); ctx.fillStyle = '#B05252'; ctx.globalAlpha = this.caughtFlash > 0 ? 0.13 * this.caughtFlash / 0.3 : 0.025;
@@ -685,7 +745,7 @@
     findPath, hasSight, sightPolygon, circlesTouch, moveBody, makeWalls, makeEnemy, runTests };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.Sector09 = api;
-  if (typeof document !== 'undefined') root.sector09Game = new Game(document);
+  if (typeof document !== 'undefined' && document.getElementById('game')) root.sector09Game = new Game(document);
 })(typeof window !== 'undefined' ? window : globalThis);
 
 

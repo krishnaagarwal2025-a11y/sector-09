@@ -55,6 +55,10 @@ Escape/
 └── README.md
 ```
 
+## Study for an interview
+
+Use the [SECTOR-09 interview study guide](docs/interview-study-guide.md) for the technology stack, algorithms, code walkthrough, sample questions and preparation checklist.
+
 ## Run
 
 Open `public/index.html` directly, or use Node.js 22+ for local HTTP serving:

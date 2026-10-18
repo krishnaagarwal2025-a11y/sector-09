@@ -338,7 +338,7 @@
       this.difficultyKey = this.selectedDifficulty; this.difficulty = DIFFICULTIES[this.difficultyKey]; this.loadHighScore();
       this.player = new Player(this.difficulty); this.walls = makeWalls();
       this.enemies = Array.from({length:this.difficulty.units}, (_, i) => makeEnemy(i, this.difficulty));
-      this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0; this.bossNotice = 0;
+      this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0; this.bossNotice = 0; this.wardenIntroSeen = false;
       this.events = []; this.accumulator = 0; this.alert = false; this.caughtFlash = 0; this.particles = []; this.trail = []; this.trailClock = 0; this.collectPulse = null;
       this.sound.setAlert(false); this.nodes = []; this.pickupTarget = Math.random() < 0.5 ? 2 : 3; this.fillNodes(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
     }
@@ -351,7 +351,8 @@
         if (event.target && event.target.tagName === 'SELECT') return;
         const key = event.key.toLowerCase(); if (!controls.includes(key)) return;
         event.preventDefault(); this.keys.add(key); if (event.repeat) return;
-        if (key === ' ' && this.mode === 'READY') this.start();
+        if (key === ' ' && this.mode === 'WARDEN_INTRO') this.continueWarden();
+        else if (key === ' ' && this.mode === 'READY') this.start();
         else if (key === 'r' && this.mode === 'OVER') this.start();
         else if (key === 'p' || key === 'escape') this.togglePause();
         else if (key === 'm') this.toggleMute();
@@ -369,7 +370,7 @@
       root.addEventListener('keyup', event => this.keys.delete(event.key.toLowerCase()));
       root.addEventListener('blur', () => { this.keys.clear(); if (this.mode === 'RUNNING') this.togglePause(); });
       this.document.addEventListener('visibilitychange', () => { if (this.document.hidden) { this.keys.clear(); if (this.mode === 'RUNNING') this.togglePause(); } });
-      this.document.getElementById('action').addEventListener('click', () => this.mode === 'PAUSED' ? this.togglePause() : this.start());
+      this.document.getElementById('action').addEventListener('click', () => this.mode === 'WARDEN_INTRO' ? this.continueWarden() : this.mode === 'PAUSED' ? this.togglePause() : this.start());
       this.document.getElementById('fullscreen').addEventListener('click', () => this.toggleFullscreen());
       if(typeof this.document.documentElement.requestFullscreen!=='function'){this.document.getElementById('fullscreen').disabled=true;this.document.getElementById('fullscreen').title='Fullscreen is unavailable in this browser';}
       this.document.getElementById('pause').addEventListener('click', () => this.togglePause());
@@ -403,6 +404,18 @@
       catch (error) { this.log('FULLSCREEN UNAVAILABLE / WINDOW VIEW ACTIVE');root.SectorErrors?.report('FULLSCREEN',error,{message:'Fullscreen could not be changed. You can keep playing in this window.'}); }
       this.canvas.focus();
     }
+    introduceWarden() {
+      if (this.wardenIntroSeen || this.mode !== 'RUNNING') return;
+      this.wardenIntroSeen = true; this.mode = 'WARDEN_INTRO';
+      this.keys.clear(); this.touchControls?.clear(); this.accumulator = 0;
+      this.updateAlert(); this.showOverlay(); this.updateHUD();
+      this.document.getElementById('action').focus();
+    }
+    continueWarden() {
+      if (this.mode !== 'WARDEN_INTRO' || this.failed) return;
+      this.mode = 'RUNNING'; this.keys.clear(); this.touchControls?.clear(); this.accumulator = 0; this.lastFrame = null;
+      this.showOverlay(); this.updateAlert(); this.updateHUD(); this.canvas.focus();
+    }
     togglePause() { if (!['RUNNING', 'PAUSED'].includes(this.mode)) return; this.mode = this.mode === 'RUNNING' ? 'PAUSED' : 'RUNNING'; this.touchControls?.clear();this.sound.cue('pause'); this.keys.clear(); this.accumulator = 0; this.showOverlay(); if (this.mode === 'RUNNING') {this.canvas.focus();this.sound.unlock().then(()=>this.updateAlert());} this.updateAlert(); this.updateHUD(); }
     onCaught(enemy) {
       this.caughtFlash = 0.3; this.sound.caught();
@@ -433,6 +446,12 @@
       get('difficulty').value = this.selectedDifficulty;
       get('mode-description').textContent = DIFFICULTIES[this.selectedDifficulty].description;
       get('action').textContent = this.touchControls?.enabled ? over?'PLAY AGAIN':paused?'RESUME GAME':'START GAME' : over ? 'PRESS [R] TO RESET SIMULATION' : paused ? 'PRESS [P] TO RESUME' : 'PRESS [SPACE] TO INITIALIZE';
+      if (this.mode === 'WARDEN_INTRO') {
+        get('overlay-tag').textContent = 'WARNING / NEW THREAT';
+        get('overlay-title').textContent = 'MEET THE WARDEN';
+        get('overlay-copy').textContent = 'The Warden has replaced all normal guards. It patrols the whole arena and outruns you in a chase. Use concrete cover to break its line of sight. At 150 points, two Wardens arrive; normal patrols return at 200. The game and pickup timers are paused until you continue.';
+        get('action').textContent = this.touchControls?.enabled ? 'CONTINUE GAME' : 'CONTINUE GAME [SPACE]';
+      }
     }
     log(message) { this.events.unshift(`${this.time.toFixed(1).padStart(5, '0')} / ${message}`); this.events = this.events.slice(0, 4); }
     /** Rejection sampling has a deterministic grid fallback: spawning always terminates. */
@@ -506,6 +525,7 @@
         this.log('THREAT ' + this.threat + ' / ' + this.enemies.length + ' UNITS');
       }
       this.fillNodes();
+      if (this.score === 100) this.introduceWarden();
     }
     update(dt) {
       if (!Number.isFinite(dt) || dt<0) throw new RangeError('Simulation timestep must be finite and nonnegative');
@@ -514,7 +534,10 @@
       for (const enemy of this.enemies) enemy.update(dt, this);
       if (this.player.hp <= 0) { this.mode = 'OVER'; this.sound.cue('over'); this.keys.clear(); this.updateAlert(); this.saveHighScore(); this.log(`YOU LOST / FINAL SCORE ${this.score}`); this.showOverlay(); return; }
       this.updateNodes(dt);
-      for (const node of [...this.nodes]) if (circlesTouch(this.player.pos, this.player.radius, node, 7)) this.collect(node);
+      for (const node of [...this.nodes]) {
+        if (circlesTouch(this.player.pos, this.player.radius, node, 7)) this.collect(node);
+        if (this.mode === 'WARDEN_INTRO') break;
+      }
       this.updateAlert();
       this.texts.forEach(t => t.update(dt)); this.texts = this.texts.filter(t => t.life > 0);
       this.updateEffects(dt);
@@ -544,7 +567,7 @@
       const get = id => this.document.getElementById(id);
       get('score').textContent = String(this.score).padStart(4, '0'); get('high-score').textContent = String(this.highScore).padStart(4, '0');
       get('integrity').textContent = `${this.player.hp} / 3`; get('threat').textContent = `${this.difficulty.label} / ${String(this.threat).padStart(2, '0')}`;
-      get('run-status').textContent = this.mode === 'RUNNING' ? this.alert ? 'ALERT / BREAK LINE OF SIGHT' : 'SIMULATION ACTIVE / UNDETECTED' : this.mode === 'READY' ? 'AWAITING INITIALIZATION' : `SIMULATION ${this.mode === 'OVER' ? 'TERMINATED' : 'PAUSED'}`;
+      get('run-status').textContent = this.mode === 'WARDEN_INTRO' ? 'PAUSED / WARDEN BRIEFING' : this.mode === 'RUNNING' ? this.alert ? 'ALERT / BREAK LINE OF SIGHT' : 'SIMULATION ACTIVE / UNDETECTED' : this.mode === 'READY' ? 'AWAITING INITIALIZATION' : `SIMULATION ${this.mode === 'OVER' ? 'TERMINATED' : 'PAUSED'}`;
       get('pause').disabled=!['RUNNING','PAUSED'].includes(this.mode);
       get('pause').textContent=this.mode==='PAUSED'?'Resume [P]':'Pause [P]';
       const errorCount=root.SectorErrors?.snapshot().length || 0;

@@ -107,6 +107,8 @@ body[data-page="play"][data-touch="true"] .music-toggle { top:calc(max(8px,env(s
   body[data-touch="true"] #overlay-tag { grid-column:1; grid-row:1; }
   body[data-touch="true"] .terminal h1 { grid-column:1; grid-row:2; font-size:22px; margin:10px 0; }
   body[data-touch="true"] #overlay-copy { grid-column:1; grid-row:3; margin:0 0 10px; line-height:1.5; }
+  body[data-touch="true"] #overlay[data-mode="WARDEN_INTRO"] h1,
+  body[data-touch="true"] #overlay[data-mode="WARDEN_INTRO"] #overlay-copy { grid-column:1 / -1; }
   body[data-touch="true"] .terminal .rule { display:none; }
   body[data-touch="true"] .mode-picker { grid-column:2; grid-row:1 / span 3; margin-bottom:12px; }
   body[data-touch="true"] #action { grid-column:2; grid-row:4; }

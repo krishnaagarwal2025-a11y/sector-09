@@ -1,0 +1,12 @@
+{
+  "name": "sector-09",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Zero-dependency tactical stealth arcade game",
+  "scripts": {
+    "start": "node scripts/serve.cjs",
+    "test": "node --test tests/unit.cjs tests/project.cjs",
+    "test:browser": "node tests/browser.cjs"
+  },
+  "engines": { "node": ">=22" }
+}

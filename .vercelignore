@@ -3,3 +3,7 @@
 README.md
 *.log
 .verify-*
+tests
+scripts
+docs
+artifacts

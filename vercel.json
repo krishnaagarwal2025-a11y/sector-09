@@ -2,14 +2,47 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "buildCommand": null,
-  "outputDirectory": ".",
+  "outputDirectory": "public",
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
       ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/play.html",
+      "destination": "/pages/play.html",
+      "permanent": true
+    },
+    {
+      "source": "/settings.html",
+      "destination": "/pages/settings.html",
+      "permanent": true
+    },
+    {
+      "source": "/sound.html",
+      "destination": "/pages/sound.html",
+      "permanent": true
+    },
+    {
+      "source": "/controls.html",
+      "destination": "/pages/controls.html",
+      "permanent": true
+    },
+    {
+      "source": "/exit.html",
+      "destination": "/pages/exit.html",
+      "permanent": true
     }
   ]
 }

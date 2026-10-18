@@ -61,7 +61,43 @@ test('Multiple timed pickups stay separated, expire without score and cannot be 
     for(const node of game.nodes){assert.ok(node.life>=10&&node.life<=14);assert.equal(game.walls.some(w=>w.overlaps(node,18)),false);assert.ok(game.nodes.every(other=>other===node||other.distance(node)>60));}
     const picked=game.nodes[0],untouched=game.nodes[1];game.collect(picked);assert.equal(game.score,10);assert.equal(game.nodes.length,target);assert.ok(game.nodes.includes(untouched));game.collect(picked);assert.equal(game.score,10);
     game.nodes[0].x=NaN;assert.throws(()=>game.update(0.01),/collectible/);
+    const rectangle={left:0,top:0,right:400,bottom:100};
+    game.canvas={getBoundingClientRect:()=>({left:0,top:0,width:800,height:600})};game.document={querySelectorAll:()=>[{getClientRects:()=>[rectangle],getBoundingClientRect:()=>rectangle}]};
+    game.nodes=[];game.fillNodes();
+    for(let i=0;i<50;i++){game.updateNodes(15);assert.ok(game.nodes.every(n=>n.x>=418||n.y>=118),'Spawn hidden by HUD');}
   }
+});
+
+test('Guards and Wardens can catch visible players touching every cover face without clipping',()=>{
+  const a=require('../public/assets/js/game/game.js'),walls=a.makeWalls();
+  for(const difficulty of Object.values(a.DIFFICULTIES))for(const make of [a.makeEnemy,a.makeBoss])for(const wall of walls){
+    for(const [x,y,dx,dy] of [[wall.x-12,wall.y+wall.h/2,-80,0],[wall.x+wall.w+12,wall.y+wall.h/2,80,0],[wall.x+wall.w/2,wall.y-12,0,-80],[wall.x+wall.w/2,wall.y+wall.h+12,0,80]]){
+      const player=new a.Player(difficulty),enemy=make(0,difficulty);player.pos=new a.Vector2D(x,y);enemy.pos=new a.Vector2D(x+dx,y+dy);let hits=0;
+      const game={player,walls,speedMultiplier:1,onCaught(){hits++;}};
+      for(let i=0;i<360;i++){player.update(a.CONFIG.STEP,new Set(),walls);enemy.update(a.CONFIG.STEP,game);assert.equal(walls.some(w=>w.overlaps(enemy.pos,enemy.radius-0.01)),false);}
+      assert.ok(hits>0,'Unreachable visible player at '+x+','+y+' in '+difficulty.label);
+    }
+  }
+});
+
+test('Late-run scaling stays finite and preserves a faster but bounded Warden chase',()=>{
+  const a=require('../public/assets/js/game/game.js');
+  for(const difficulty of Object.values(a.DIFFICULTIES)){
+    const game=Object.create(a.Game.prototype);Object.assign(game,{difficulty,player:new a.Player(),walls:a.makeWalls(),enemies:[],nodes:[],score:999990,highScore:0,threat:1,texts:[],events:[],time:0,sound:{click(){},cue(){}},saveHighScore(){}});game.fillNodes();game.collect();
+    assert.ok(Number.isFinite(game.speedMultiplier)&&game.speedMultiplier<=a.CONFIG.MAX_SPEED_MULTIPLIER);
+    for(const make of [a.makeEnemy,a.makeBoss])for(const state of ['PATROL','CHASE','ATTACK','RETURN']){
+      const enemy=make(0,difficulty);enemy.state=state;const speed=enemy.movementSpeed(game);assert.ok(Number.isFinite(speed)&&speed<=408);
+      if(enemy.isBoss&&state==='CHASE')assert.ok(speed>a.CONFIG.PLAYER_SPEED&&speed<=a.CONFIG.MAX_BOSS_CHASE_SPEED);
+    }
+  }
+});
+
+test('Corrupt enormous and fractional saved records cannot overflow the score display',()=>{
+  const a=require('../public/assets/js/game/game.js'),previous=global.localStorage;
+  assert.equal(a.formatScore(0),'0000');assert.equal(a.formatScore(100),'0100');assert.equal(a.formatScore(100000),'100K');assert.ok(a.formatScore(Number.MAX_SAFE_INTEGER).length<=8);
+  try{for(const value of ['1e200','12.5','-1','Infinity','NaN','50']){
+    global.localStorage={getItem:()=>value};const game=Object.create(a.Game.prototype);Object.assign(game,{records:{medium:20},difficultyKey:'medium'});game.loadHighScore();assert.equal(game.highScore,value==='50'?50:20);
+  }}finally{if(previous===undefined)delete global.localStorage;else global.localStorage=previous;}
 });
 
 test('Warden patrol completes a whole-arena circuit through perimeter and central lanes',()=>{

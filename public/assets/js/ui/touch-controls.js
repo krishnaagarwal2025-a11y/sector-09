@@ -57,7 +57,7 @@
     refresh(){
       this.enabled=!!(root.matchMedia?.('(pointer: coarse)').matches||root.navigator?.maxTouchPoints>0);
       this.document.body.dataset.touch=String(this.enabled);
-      if(this.enabled)this.document.getElementById('fullscreen').textContent=this.document.fullscreenElement?'Exit fullscreen':'Fullscreen';
+      if(this.enabled)this.document.getElementById('fullscreen').textContent=this.document.fullscreenElement?'Exit full screen':'Full screen';
       const running=this.enabled&&this.game.mode==='RUNNING';this.ui.hidden=!running;
       if(!running)this.clear();
       this.document.getElementById('touch-mute').textContent=this.game.sound.muted?'Sound off':'Sound on';

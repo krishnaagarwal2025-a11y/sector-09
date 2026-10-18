@@ -64,3 +64,9 @@ No implementation can detect every possible browser, hardware or network failure
 ## Routes and deployment
 
 Pages live under `/pages/`; `/play.html`, `/settings.html`, `/sound.html`, `/controls.html`, and `/exit.html` redirect permanently to those paths. Relative links still support opening `public/index.html` locally. The development server reads the same redirects as Vercel and confines file access to `public/`. Tests, scripts, Git metadata, and documentation are outside the production output directory.
+
+## Release hardening
+
+Navigation uses actual body clearance for graph edges and a contact-distance pursuit target so players touching cover remain reachable when visible. The final steering probe stops at its navigation goal. Sight graphics use the same patrol/chase range as detection. Speed escalation caps at 3×; per-state movement caps keep long runs finite while Wardens outrun the player. The second Warden traverses its full-map route in reverse.
+
+Menus use modal dialog semantics, background inertness and Tab wrapping. Modified browser shortcuts remain native, and fullscreen clears both keyboard and touch state. Static scenes redraw only after relevant presentation state changes; running touch scenes retain the 60 Hz draw cap with 120 Hz simulation. Audio playback changes notify the shared music control without repainting it on every physics step. See [release QA](release-qa.md) for the verified matrix and remaining device limits.

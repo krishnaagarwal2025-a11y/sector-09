@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="description" content="A tactical stealth arcade game. Collect data, hide from patrols, and survive Warden waves. Play with keyboard or phone touch controls.">
+  <link rel="icon" type="image/svg+xml" href="../assets/icons/sector09.svg">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#1e2022">
   <script src="../assets/js/core/errors.js"></script>
@@ -55,7 +57,7 @@
         </div>
       </div>
       <div class="overlay" id="overlay">
-        <div class="terminal">
+        <div class="terminal" role="dialog" aria-modal="true" aria-labelledby="overlay-title" aria-describedby="overlay-copy">
           <div class="small" id="overlay-tag">SIMULATION / STANDBY</div>
           <h1 id="overlay-title">ENTER THE SECTOR</h1>
           <p id="overlay-copy">Retrieve data. Hide behind cover. Choose your difficulty below.</p>

@@ -17,6 +17,7 @@
       } catch(error) { this.fail('AUDIO_SETTINGS',error); }
       if(this.muted || settings.music===0 || settings.master===0)this.setMusic(false);
       if(this.muted || settings.siren===0 || settings.master===0)this.setAlert(false);
+      this.onChange?.();
     }
     fail(code,error) {
       this.muted=true;
@@ -119,9 +120,10 @@
     setMusic(active) {
       const enabled=active&&!this.muted&&this.settings.music>0&&this.settings.master>0&&this.context?.state==='running';
       if(!enabled){
+        const wasPlaying=this.musicTimer!==null;
         if(this.musicTimer!==null){this.resumeMusicStep=this.musicStep%16;root.clearInterval(this.musicTimer);this.musicTimer=null;}
         for(const node of this.musicNodes){try{node.stop(this.context.currentTime+0.025);}catch(_) {}}
-        this.musicNodes.clear();return;
+        this.musicNodes.clear();if(wasPlaying)this.onChange?.();return;
       }
       if(this.musicTimer!==null)return;
       this.musicStep=this.resumeMusicStep||0;this.resumeMusicStep=0;this.nextMusicTime=this.context.currentTime+0.04;
@@ -132,7 +134,7 @@
           while(this.nextMusicTime<this.context.currentTime+0.18){this.scheduleMusicStep(this.nextMusicTime,this.musicStep++);this.nextMusicTime+=60/88/2;}
         }catch(error){this.fail('AUDIO_MUSIC',error);}
       };
-      this.musicTimer=root.setInterval(schedule,100);schedule();
+      this.musicTimer=root.setInterval(schedule,100);schedule();this.onChange?.();
     }
   }
 

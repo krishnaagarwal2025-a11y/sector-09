@@ -86,8 +86,8 @@ body[data-touch="true"] .controls-panel,body[data-touch="true"] .keyboard-hint,b
 body[data-touch="true"] .touch-hint { display:block; }
 body[data-touch="true"] .status { top:max(8px,env(safe-area-inset-top)); left:max(10px,env(safe-area-inset-left)); right:auto; width:min(340px,calc(100% - 205px)); grid-template-columns:repeat(3,minmax(0,1fr)) minmax(95px,1.3fr); }
 body[data-touch="true"] .metric { padding:6px 9px; }
-body[data-touch="true"] .metric span { font-size:7px; margin-bottom:3px; letter-spacing:.5px; }
-body[data-touch="true"] .metric strong { font-size:13px; }
+body[data-touch="true"] .metric span { font-size:9px; margin-bottom:3px; letter-spacing:.3px; }
+body[data-touch="true"] .metric strong { font-size:14px; }
 body[data-touch="true"] #threat { font-size:11px; }
 body[data-touch="true"] .game-actions { top:max(8px,env(safe-area-inset-top)); right:max(10px,env(safe-area-inset-right)); }
 body[data-touch="true"] .game-actions a,body[data-touch="true"] .game-actions button { display:grid; place-items:center; padding:8px 10px; }
@@ -121,4 +121,17 @@ body[data-page="play"][data-touch="true"] .music-toggle { top:calc(max(8px,env(s
   .joystick { width:108px; height:108px; bottom:max(21px,env(safe-area-inset-bottom)); }
   .joystick-thumb { width:40px; height:40px; }
   .touch-actions { bottom:max(18px,env(safe-area-inset-bottom)); gap:6px; }
+}
+/* Wide phones have side gutters around the 4:3 arena. Keep telemetry there
+   rather than obscuring the top-left patrol route. */
+@media(orientation:landscape) and (min-aspect-ratio:7/4) and (max-height:600px) {
+  body[data-touch="true"] .status { width:clamp(54px,calc((100vw - 133.333dvh) / 2 - 20px),140px); grid-template-columns:1fr; }
+  body[data-touch="true"] .metric { padding:4px 6px; border-right:0; border-bottom:1px solid var(--border); }
+  body[data-touch="true"] .metric:last-child { border-bottom:0; }
+  body[data-touch="true"] .metric span { font-size:8px; line-height:1.2; margin-bottom:2px; }
+  body[data-touch="true"] .metric strong { font-size:12px; }
+  body[data-touch="true"] #threat { font-size:11px; white-space:normal; }
+  body[data-touch="true"] .game-actions { display:grid; width:clamp(54px,calc((100vw - 133.333dvh) / 2 - 20px),140px); }
+  body[data-touch="true"] .game-actions a,body[data-touch="true"] .game-actions button { padding:5px; font-size:10px; }
+  body[data-page="play"][data-touch="true"] .music-toggle { top:calc(max(8px,env(safe-area-inset-top)) + 104px); max-width:clamp(54px,calc((100vw - 133.333dvh) / 2 - 20px),140px); padding:5px; font-size:10px; }
 }

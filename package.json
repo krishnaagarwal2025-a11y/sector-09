@@ -6,7 +6,11 @@
   "scripts": {
     "start": "node scripts/serve.cjs",
     "test": "node --test tests/unit.cjs tests/project.cjs",
-    "test:browser": "node tests/browser.cjs"
+    "test:browser": "node tests/browser.cjs",
+    "test:play": "node tests/playtest.cjs",
+    "test:all": "npm test && npm run test:play && npm run test:browser"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

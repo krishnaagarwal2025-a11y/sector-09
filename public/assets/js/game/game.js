@@ -6,7 +6,9 @@
 (function (root) {
   const CONFIG = Object.freeze({ WIDTH: 800, HEIGHT: 600, STEP: 1 / 120,
     PLAYER_SPEED: 170, ENEMY_SPEED: 62, DETECTION_RANGE: 160,
-    LOSE_SIGHT_RANGE: 210, ATTACK_RANGE: 35, MAX_ENEMIES: 5 });
+    LOSE_SIGHT_RANGE: 210, ATTACK_RANGE: 35, MAX_ENEMIES: 5,
+    MAX_SPEED_MULTIPLIER: 3, MAX_PATROL_SPEED: 153, MAX_CHASE_SPEED: 204,
+    MAX_BOSS_CHASE_SPEED: 306, MAX_ATTACK_SPEED: 340 });
   const COLORS = Object.freeze({ PATROL: '#688060', RETURN: '#B89A52',
     CHASE: '#B05252', ATTACK: '#D9D4CC' });
   // God mode is the toughest preset, including the shortest damage recovery.
@@ -17,6 +19,8 @@
     god: { label:'GOD', units:5, speed:1.45, detection:220, loss:280, cooldown:0.55, grace:0.55, escalation:0.15, description:'Toughest difficulty. 5 elite guards, maximum sight and speed, fastest attacks, only 0.55s recovery. Speed +15% per threat level. 3 hits and you lose.' }
   }).map(([key, value]) => [key, Object.freeze(value)])));
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+  const compactScore = new Intl.NumberFormat('en', { notation:'compact', maximumFractionDigits:1 });
+  const formatScore = value => value < 100000 ? String(value).padStart(4, '0') : compactScore.format(value);
   const Theme=root.SectorTheme || (typeof require==='function'?require('../core/theme.js'):null);
   const palette=()=>Theme.palette();
 
@@ -139,7 +143,7 @@
    */
   function findPath(start, goal, walls, radius) {
     const padding = radius + 4;
-    if (hasSight(start, goal, walls, padding)) return [goal];
+    if (hasSight(start, goal, walls, radius - 0.001)) return [goal];
     const nodes = [start, goal];
     for (const w of walls) for (const x of [w.x - padding - 1, w.x + w.w + padding + 1])
       for (const y of [w.y - padding - 1, w.y + w.h + padding + 1]) {
@@ -157,7 +161,7 @@
         return path;
       }
       visited.add(u);
-      for (let v = 0; v < nodes.length; v++) if (!visited.has(v) && hasSight(nodes[u], nodes[v], walls, padding)) {
+      for (let v = 0; v < nodes.length; v++) if (!visited.has(v) && hasSight(nodes[u], nodes[v], walls, radius - 0.001)) {
         const cost = dist[u] + nodes[u].distance(nodes[v]);
         if (cost < dist[v]) { dist[v] = cost; previous[v] = u; }
       }
@@ -201,9 +205,9 @@
       if (state === 'RETURN') this.waypoint = this.waypoints.reduce((best, p, i, arr) =>
         this.pos.distance(p) < this.pos.distance(arr[best]) ? i : best, 0);
     }
+    get sightRange() { return this.state === 'CHASE' || this.state === 'ATTACK' ? this.difficulty.loss : this.difficulty.detection; }
     canSee(player, walls) {
-      const range = this.state === 'CHASE' || this.state === 'ATTACK' ? this.difficulty.loss : this.difficulty.detection;
-      return this.pos.distance(player.pos) <= range && hasSight(this.pos, player.pos, walls);
+      return this.pos.distance(player.pos) <= this.sightRange && hasSight(this.pos, player.pos, walls);
     }
     /** Cover immediately breaks pursuit. The wider loss radius still implements
      * distance hysteresis in open space, but never grants vision through walls.
@@ -222,13 +226,13 @@
     /** Sample five whiskers relative to desired heading. Prefer forward progress,
      * penalize impending contacts, then lerp velocity with dt-independent damping.
      */
-    steer(direction, walls) {
+    steer(direction, walls, lookAhead = 32) {
       if (!direction.length()) { this.whiskers = []; return direction; }
       const heading = Math.atan2(direction.y, direction.x); let best = direction, bestScore = -Infinity;
       this.whiskers = [];
       for (const angle of [0, -0.45, 0.45, -0.9, 0.9]) {
         const ray = new Vector2D(Math.cos(heading + angle), Math.sin(heading + angle));
-        const end = this.pos.add(ray.scale(32));
+        const end = this.pos.add(ray.scale(lookAhead));
         const blocked = !hasSight(this.pos, end, walls, this.radius + 1) || end.x < this.radius || end.x > 800 - this.radius || end.y < this.radius || end.y > 600 - this.radius;
         this.whiskers.push({ end, blocked });
         const score = direction.dot(ray) - (blocked ? 3 : 0);
@@ -240,7 +244,9 @@
       this.cooldown = Math.max(0, this.cooldown - dt); this.attackTime -= dt;
       this.decide(game.player, game.walls);
       const hunting = this.state === 'CHASE' || this.state === 'ATTACK';
-      this.target = hunting ? game.player.pos : this.waypoints[this.waypoint];
+      // Aim for contact distance on the approach side, rather than the player's
+      // center: a player touching cover must not produce an unreachable AI goal.
+      this.target = hunting ? game.player.pos.sub(game.player.pos.sub(this.pos).normalized().scale(this.radius + game.player.radius - 1)) : this.waypoints[this.waypoint];
       if (this.state === 'PATROL' && this.pos.distance(this.target) < 8) {
         this.waypoint = (this.waypoint + 1) % this.waypoints.length; this.target = this.waypoints[this.waypoint]; this.repath = 0;
       }
@@ -251,7 +257,8 @@
       // Close combat stops orbiting but preserves a short, visible lunge.
       if (hunting && this.pos.distance(game.player.pos) < 24 && this.state !== 'ATTACK') direction = new Vector2D();
       const speed = this.movementSpeed(game);
-      this.vel = this.vel.lerp(this.steer(direction, game.walls).scale(speed), 1 - Math.exp(-12 * dt));
+      const lookAhead = this.path.length ? Math.min(32, this.pos.distance(this.path[0])) : 32;
+      this.vel = this.vel.lerp(this.steer(direction, game.walls, lookAhead).scale(speed), 1 - Math.exp(-12 * dt));
       moveBody(this, this.vel.scale(dt), game.walls);
       if (this.vel.length() > 1) this.heading = Math.atan2(this.vel.y, this.vel.x);
       if (this.state === 'ATTACK' && circlesTouch(this.pos, this.radius + 3, game.player.pos, game.player.radius) && hasSight(this.pos, game.player.pos, game.walls)) {
@@ -260,7 +267,8 @@
     }
     movementSpeed(game) {
       const hunting = this.state === 'CHASE' || this.state === 'ATTACK';
-      return CONFIG.ENEMY_SPEED * this.difficulty.speed * game.speedMultiplier * (this.state === 'ATTACK' ? 2.5 : hunting ? 1.35 : 1);
+      const desired = CONFIG.ENEMY_SPEED * this.difficulty.speed * game.speedMultiplier * (this.state === 'ATTACK' ? 2.5 : hunting ? 1.35 : 1);
+      return Math.min(desired, this.state === 'ATTACK' ? CONFIG.MAX_ATTACK_SPEED : hunting ? CONFIG.MAX_CHASE_SPEED : CONFIG.MAX_PATROL_SPEED);
     }
     draw(ctx, walls) {
       const color = palette().states[this.state];
@@ -268,13 +276,13 @@
       ctx.beginPath(); this.waypoints.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.stroke();
       ctx.setLineDash([]);
       for (const p of this.waypoints) { ctx.beginPath(); ctx.moveTo(p.x - 4, p.y); ctx.lineTo(p.x + 4, p.y); ctx.moveTo(p.x, p.y - 4); ctx.lineTo(p.x, p.y + 4); ctx.stroke(); }
-      const visibility = sightPolygon(this.pos, this.difficulty.detection, walls);
+      const visibility = sightPolygon(this.pos, this.sightRange, walls);
       ctx.globalAlpha = 0.06; ctx.fillStyle = color; ctx.beginPath();
       visibility.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)); ctx.closePath(); ctx.fill();
       ctx.globalAlpha = 0.42; ctx.strokeStyle = color; ctx.setLineDash([4, 6]); ctx.stroke(); ctx.restore();
       drawHull(ctx, this, color);
       ctx.font = '10px "Segoe UI", Arial, sans-serif'; ctx.fillStyle = color; ctx.textAlign = 'center';
-      ctx.fillText(`${this.isBoss ? 'WARDEN / ' : 'STATE: '}${this.state}`, clamp(this.pos.x, 60, 740), Math.max(12, this.pos.y - (this.isBoss ? 30 : 23))); ctx.textAlign = 'left';
+      ctx.fillText(`${this.isBoss ? 'WARDEN / ' : 'STATE: '}${this.state}`, clamp(this.pos.x, 60, 740), Math.max(12, this.pos.y - (this.isBoss ? 46 : 23))); ctx.textAlign = 'left';
     }
   }
 
@@ -285,7 +293,7 @@
     movementSpeed(game) {
       const hunting = this.state === 'CHASE' || this.state === 'ATTACK';
       // Even Easy's first boss outruns the player's full-speed movement.
-      return hunting ? Math.max(CONFIG.PLAYER_SPEED * 1.2, super.movementSpeed(game) * 1.8) : super.movementSpeed(game) * 1.2;
+      return hunting ? Math.min(this.state === 'ATTACK' ? CONFIG.MAX_ATTACK_SPEED * 1.2 : CONFIG.MAX_BOSS_CHASE_SPEED, Math.max(CONFIG.PLAYER_SPEED * 1.2, super.movementSpeed(game) * 1.8)) : Math.min(CONFIG.MAX_PATROL_SPEED, super.movementSpeed(game) * 1.2);
     }
   }
 
@@ -314,7 +322,11 @@
     [[715,85],[715,270],[420,270],[420,85]], [[85,515],[85,300],[380,300],[380,515]],
     [[350,110],[450,110],[450,480],[350,480]] ];
   function makeEnemy(i, difficulty = DIFFICULTIES.medium) { return new Enemy(i + 1, routes[i].map(([x, y]) => new Vector2D(x, y)), difficulty); }
-  function makeBoss(i, difficulty = DIFFICULTIES.medium) { return new Boss(`boss-${i + 1}`, [[85,85],[715,85],[715,515],[85,515],[85,300],[715,300],[715,515],[400,515],[400,85]].map(([x,y]) => new Vector2D(x,y)), difficulty); }
+  function makeBoss(i, difficulty = DIFFICULTIES.medium) {
+    const route = [[85,85],[715,85],[715,515],[85,515],[85,300],[715,300],[715,515],[400,515],[400,85]];
+    if (i % 2) route.reverse();
+    return new Boss(`boss-${i + 1}`, route.map(([x,y]) => new Vector2D(x,y)), difficulty);
+  }
 
   class Game {
     constructor(document) {
@@ -345,6 +357,16 @@
     bind() {
       const controls = [' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', 'p', 'escape', 't', 'm', 'r', 'f'];
       root.addEventListener('keydown', event => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        if (event.key === 'Tab' && !this.document.getElementById('overlay').hidden) {
+          const overlay = this.document.getElementById('overlay');
+          const items = [...overlay.querySelectorAll('a[href],button:not(:disabled),select')].filter(e => e.getClientRects().length);
+          const first = items[0], last = items[items.length - 1], active = this.document.activeElement;
+          if (first && (!overlay.contains(active) || event.shiftKey && active === first || !event.shiftKey && active === last)) {
+            event.preventDefault(); (event.shiftKey ? last : first).focus();
+          }
+          return;
+        }
         // Keep native Enter/Space activation available for the accessible button.
         if (event.target && event.target.tagName === 'BUTTON' && (event.key === ' ' || event.key === 'Enter')) return;
         // Native selection keys must never start a run or move the player.
@@ -387,7 +409,7 @@
         this.saveHighScore(); this.mode = 'READY'; this.keys.clear(); this.reset(); this.updateAlert(); this.showOverlay(); this.updateHUD();
       });
       this.document.addEventListener('fullscreenchange', () => {
-        this.keys.clear(); this.document.getElementById('fullscreen').textContent = this.document.fullscreenElement ? 'EXIT FULLSCREEN [F]' : 'FULLSCREEN [F]';
+        this.keys.clear(); this.touchControls?.clear(); this.document.getElementById('fullscreen').textContent = this.document.fullscreenElement ? 'EXIT FULLSCREEN [F]' : 'FULLSCREEN [F]';
       });
     }
     start() { if(this.failed) return; const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); (root.SectorAudio?root.SectorAudio.start():this.sound.unlock()).then(ready=>{if(ready && this.mode==='RUNNING'){this.sound.cue('start');this.updateAlert();}}); if (initial && this.preferences.fullscreen&&this.document.documentElement.requestFullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
@@ -436,8 +458,10 @@
     showOverlay() {
       this.touchControls?.refresh();
       const get = id => this.document.getElementById(id), over = this.mode === 'OVER', paused = this.mode === 'PAUSED';
+      const wasHidden = get('overlay').hidden, changed = get('overlay').dataset.mode !== this.mode;
       get('overlay').dataset.mode=this.mode;
       get('overlay').hidden = this.mode === 'RUNNING';
+      for (const element of this.document.querySelectorAll('.field > :not(#overlay), .music-toggle')) element.inert = this.mode !== 'RUNNING';
       get('overlay-tag').textContent = over ? `GAME OVER / ${this.difficulty.label}` : paused ? `PAUSED / ${this.difficulty.label}` : 'SIMULATION / STANDBY';
       get('overlay-title').textContent = over ? 'YOU LOST' : paused ? 'FIELD PAUSED' : 'ENTER THE SECTOR';
       get('overlay-copy').textContent = over ? `The guards caught you. Final score: ${this.score}. ${this.difficulty.label} best: ${this.highScore}. Choose a mode and play again.` : paused ? 'Simulation clock stopped. Resume, or end this run to choose another difficulty.' : 'Retrieve data. Hide behind cover. Choose your difficulty below.';
@@ -452,14 +476,29 @@
         get('overlay-copy').textContent = 'The Warden has replaced all normal guards. It patrols the whole arena and outruns you in a chase. Use concrete cover to break its line of sight. At 150 points, two Wardens arrive; normal patrols return at 200. The game and pickup timers are paused until you continue.';
         get('action').textContent = this.touchControls?.enabled ? 'CONTINUE GAME' : 'CONTINUE GAME [SPACE]';
       }
+      if (this.mode !== 'RUNNING' && (wasHidden || changed)) get('action').focus();
     }
     log(message) { this.events.unshift(`${this.time.toFixed(1).padStart(5, '0')} / ${message}`); this.events = this.events.slice(0, 4); }
     /** Rejection sampling has a deterministic grid fallback: spawning always terminates. */
     spawnNode() {
-      const valid = p => !this.walls.some(w => w.overlaps(p, 18)) && p.distance(this.player.pos) > 45 && this.enemies.every(e => p.distance(e.pos) > 38) && (this.nodes || []).every(n => p.distance(n) > 60);
+      const visible = this.nodeVisibility();
+      const valid = p => visible(p) && !this.walls.some(w => w.overlaps(p, 18)) && p.distance(this.player.pos) > 45 && this.enemies.every(e => p.distance(e.pos) > 38) && (this.nodes || []).every(n => p.distance(n) > 60);
       for (let i = 0; i < 300; i++) { const p = new Vector2D(28 + Math.random() * 744, 28 + Math.random() * 544); if (valid(p)) return p; }
       for (let y = 30; y < 580; y += 25) for (let x = 30; x < 780; x += 25) { const p = new Vector2D(x, y); if (valid(p)) return p; }
       return new Vector2D(30, 30); // Fixed map always has ample valid grid candidates.
+    }
+    /** Object-fit leaves gutters. Project world points into the actual viewport
+     * so UI overlays cannot hide pickups, including a phone's thumb controls. */
+    nodeVisibility() {
+      if (!this.canvas?.getBoundingClientRect || !this.document?.querySelectorAll) return () => true;
+      const field = this.canvas.getBoundingClientRect(), scale = Math.min(field.width / 800, field.height / 600);
+      if (!(scale > 0)) return () => true;
+      const left = field.left + (field.width - 800 * scale) / 2, top = field.top + (field.height - 600 * scale) / 2;
+      const rectangles = [...this.document.querySelectorAll('.status,.game-actions,.music-toggle,#joystick,.touch-actions')].filter(e => e.getClientRects().length).map(e => e.getBoundingClientRect());
+      return p => !rectangles.some(r => left+p.x*scale+18*scale > r.left && left+p.x*scale-18*scale < r.right && top+p.y*scale+18*scale > r.top && top+p.y*scale-18*scale < r.bottom);
+    }
+    ensureNodeVisibility() {
+      const visible = this.nodeVisibility(); this.nodes = this.nodes.filter(visible); this.fillNodes();
     }
     /** Keep per-mode records separate. The revised God challenge uses a new bucket
      * so scores from its former invincible version do not count. Migrate the
@@ -470,7 +509,7 @@
       try {
         const raw = root.localStorage.getItem(`sector09.highScore.${this.difficultyKey === 'god' ? 'god.toughest' : this.difficultyKey}`);
         const value = Number(raw === null && this.difficultyKey === 'medium' ? root.localStorage.getItem('sector09.highScore') : raw);
-        if (!Number.isFinite(value) || value<0) throw new Error('Invalid saved high score');
+        if (!Number.isSafeInteger(value) || value<0) throw new Error('Invalid saved high score');
         score = Math.max(score, Math.floor(value));
       } catch (error) { root.SectorErrors?.report('SCORE_READ',error,{message:'Saved scores are unavailable. Your best score will be kept for this page session.'}); }
       this.highScore = score; this.persistedHighScore = score;
@@ -506,7 +545,7 @@
       if (this.motion) this.collectPulse = { pos:new Vector2D(node.x,node.y), life:0.5 };
       const nextThreat = 1 + Math.floor(this.score / 50);
       if (nextThreat > this.threat) {
-        this.threat = nextThreat; this.speedMultiplier = Math.pow(1 + this.difficulty.escalation, this.threat - 1);
+        this.threat = nextThreat; this.speedMultiplier = Math.min(CONFIG.MAX_SPEED_MULTIPLIER, Math.pow(1 + this.difficulty.escalation, this.threat - 1));
         const wave = this.score % 200;
         if (wave === 100 || wave === 150) {
           // Two consecutive boss waves replace patrols between 100 and 200 points.
@@ -565,7 +604,8 @@
     }
     updateHUD() {
       const get = id => this.document.getElementById(id);
-      get('score').textContent = String(this.score).padStart(4, '0'); get('high-score').textContent = String(this.highScore).padStart(4, '0');
+      get('score').textContent = formatScore(this.score); get('high-score').textContent = formatScore(this.highScore);
+      get('score').setAttribute('aria-label', `Score ${this.score} points`); get('high-score').setAttribute('aria-label', `Best score ${this.highScore} points`);
       get('integrity').textContent = `${this.player.hp} / 3`; get('threat').textContent = `${this.difficulty.label} / ${String(this.threat).padStart(2, '0')}`;
       get('run-status').textContent = this.mode === 'WARDEN_INTRO' ? 'PAUSED / WARDEN BRIEFING' : this.mode === 'RUNNING' ? this.alert ? 'ALERT / BREAK LINE OF SIGHT' : 'SIMULATION ACTIVE / UNDETECTED' : this.mode === 'READY' ? 'AWAITING INITIALIZATION' : `SIMULATION ${this.mode === 'OVER' ? 'TERMINATED' : 'PAUSED'}`;
       get('pause').disabled=!['RUNNING','PAUSED'].includes(this.mode);
@@ -640,7 +680,12 @@
         this.accumulator += Math.min(elapsed, 0.1);
         while (this.accumulator >= CONFIG.STEP && this.mode === 'RUNNING') { this.update(CONFIG.STEP); this.accumulator -= CONFIG.STEP; }
       } else this.accumulator = 0;
-      if(!this.touchControls?.enabled||!this.lastDraw||timestamp-this.lastDraw>=1000/60-0.5){this.draw();this.lastDraw=timestamp;}
+      const signature = [this.mode,this.difficultyKey,this.diagnostics,root.document?.documentElement.dataset.theme,this.canvas?.clientWidth,this.canvas?.clientHeight].join('/');
+      const dirty = signature !== this.lastDrawSignature;
+      if (dirty && this.mode === 'RUNNING') this.ensureNodeVisibility();
+      if (dirty || this.mode === 'RUNNING' && (!this.touchControls?.enabled || !this.lastDraw || timestamp-this.lastDraw>=1000/60-0.5)) {
+        this.draw(); this.lastDraw=timestamp; this.lastDrawSignature=signature;
+      }
       if (!this.lastHUD || timestamp - this.lastHUD >= 100) { this.updateHUD(); this.lastHUD = timestamp; }
       root.requestAnimationFrame(this.frame);
       } catch(error) { this.fail(error); }
@@ -662,7 +707,7 @@
   }
 
   const api = { CONFIG, DIFFICULTIES, Vector2D, Player, Enemy, Boss, Obstacle, FloatingText, SoundSystem, Game,
-    findPath, hasSight, sightPolygon, circlesTouch, moveBody, makeWalls, makeEnemy, makeBoss, runTests };
+    findPath, hasSight, sightPolygon, circlesTouch, moveBody, makeWalls, makeEnemy, makeBoss, formatScore, runTests };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   root.Sector09 = api;
   // Startup is owned by core/bootstrap.js after dependency and DOM validation.

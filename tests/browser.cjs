@@ -11,7 +11,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   const binary=candidates.find(file=>fs.existsSync(file));
   if(!binary)throw Error('Chrome not found. Set CHROME_PATH to its executable to run browser tests.');
   const server=createServer();await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-  const base=`http://127.0.0.1:${server.address().port}`;
+  const base=process.env.TEST_BASE_URL || `http://127.0.0.1:${server.address().port}`;
   const profile=fs.mkdtempSync(path.join(os.tmpdir(),'sector09-browser-'));
   const browser=spawn(binary,['--headless=new','--disable-gpu','--no-first-run','--remote-debugging-port=0','--user-data-dir='+profile,'--window-size=1100,950','about:blank'],{stdio:'ignore',windowsHide:true});
   let ws;
@@ -49,6 +49,13 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     await ev(`(()=>{const e=document.getElementById('master');e.value=25;e.dispatchEvent(new Event('input'));document.querySelector('[data-preview="collect"]').click();})()`);await delay(150);
     assert.equal(await ev('document.getElementById("saved").textContent.includes("Playing preview")'),true);
     await nav('/pages/play.html');assert.equal(await ev('sector09Game.enemies.length===5 && sector09Game.sound.settings.master===0.25'),true);
+    assert.equal(await ev('document.querySelector(".terminal").getAttribute("aria-modal")==="true"&&document.getElementById("game").inert'),true,'Dialog does not isolate the background');
+    await ev('document.querySelector(".overlay-links a:last-child").focus()');
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab'});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab'});
+    assert.equal(await ev('document.activeElement.id==="difficulty"'),true,'Dialog focus escaped at its end');
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',modifiers:8});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',modifiers:8});
+    assert.equal(await ev('document.activeElement===document.querySelector(".overlay-links a:last-child")'),true,'Reverse tab escaped the dialog');
+    assert.equal(await ev('window.dispatchEvent(new KeyboardEvent("keydown",{key:"r",ctrlKey:true,cancelable:true}))'),true,'Game intercepted a browser shortcut');
     assert.equal(await ev('document.documentElement.dataset.theme==="light" && SectorTheme.palette().background==="#EDF0EB"'),true);
     await send('Emulation.setDeviceMetricsOverride',{width:1191,height:715,deviceScaleFactor:1,mobile:false});
     await ev('document.getElementById("action").click()');await delay(100);
@@ -56,27 +63,28 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     assert.equal(await ev('sector09Game.sound.musicTimer!==null'),true,'BGM did not start');
     const renderedAudio=await ev(`(async()=>{
       const rms={};
-      for(const type of ['siren','music','spawn','boss','collect','muted']){
+      for(const type of ['siren','music','spawn','boss','collect','mixed','muted']){
         const offline=new OfflineAudioContext(1,26460,22050),s=new SectorSoundSystem();
         s.context=new Proxy(offline,{get(target,key){if(key==='state')return 'running';const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
         s.masterGain=offline.createGain();s.effectsGain=offline.createGain();s.sirenGain=offline.createGain();s.musicGain=offline.createGain();
         s.masterGain.connect(offline.destination);for(const bus of [s.effectsGain,s.sirenGain,s.musicGain])bus.connect(s.masterGain);
         s.applySettings({master:1,effects:1,siren:1,music:1,muted:type==='muted'});
-        if(type==='siren'||type==='muted')s.setAlert(true);else if(type==='music')s.scheduleMusicStep(0,0);else if(type==='spawn'||type==='boss')s.cue(type);else s.click();
+        if(type==='mixed'){s.scheduleMusicStep(0,0);s.setAlert(true);s.click();s.caught();s.cue('boss');}
+        else if(type==='siren'||type==='muted')s.setAlert(true);else if(type==='music')s.scheduleMusicStep(0,0);else if(type==='spawn'||type==='boss')s.cue(type);else s.click();
         const samples=(await offline.startRendering()).getChannelData(0);let sum=0,peak=0;for(const n of samples){sum+=n*n;peak=Math.max(peak,Math.abs(n));}rms[type]={rms:Math.sqrt(sum/samples.length),peak};
       }
       return rms;
     })()`);
     assert.ok(renderedAudio.siren.rms>0.012,'Siren waveform too quiet');assert.ok(renderedAudio.music.rms>0.025,'BGM synthesis output still too low');for(const type of ['music','spawn','boss','collect'])assert.ok(renderedAudio[type].rms>0.002,type+' produced no audible signal');assert.equal(renderedAudio.muted.rms,0);for(const value of Object.values(renderedAudio))assert.ok(value.peak<0.8,'Audio clipping');
-    console.log('PASS: actual rendered siren/BGM/spawn/effects waveforms, mute silence and peak levels.');
+    console.log('PASS: actual rendered siren/BGM/spawn/effects and simultaneous mixed waveforms, mute silence and peak levels.');
     await ev(`(()=>{const g=sector09Game;g.enemies=[Sector09.makeEnemy(0)];const e=g.enemies[0];e.pos=new Sector09.Vector2D(130,180);g.player.pos=new Sector09.Vector2D(130,240);e.transition('CHASE');g.updateAlert()})()`);
     assert.equal(await ev('sector09Game.alert && !!sector09Game.sound.siren'),true,'Visible player did not trigger siren');
     await ev('sector09Game.player.pos=new Sector09.Vector2D(315,180);sector09Game.enemies[0].decide(sector09Game.player,sector09Game.walls);sector09Game.updateAlert()');
     assert.equal(await ev('!sector09Game.sound.siren && sector09Game.sound.musicTimer!==null'),true,'Cover did not stop alarm or incorrectly stopped BGM');
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:'m',code:'KeyM'});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'m',code:'KeyM'});
-    assert.equal(await ev('sector09Game.sound.muted && sector09Game.sound.musicTimer===null && !sector09Game.sound.siren'),true,'Mute did not stop music/alarm');
+    assert.equal(await ev('sector09Game.sound.muted && sector09Game.sound.musicTimer===null && !sector09Game.sound.siren && document.querySelector(".music-toggle").textContent==="Music off"'),true,'Mute did not stop music/alarm or update its status');
     await send('Input.dispatchKeyEvent',{type:'keyDown',key:'m',code:'KeyM'});await send('Input.dispatchKeyEvent',{type:'keyUp',key:'m',code:'KeyM'});await delay(50);
-    assert.equal(await ev('!sector09Game.sound.muted && sector09Game.sound.musicTimer!==null'),true,'Unmute did not restore BGM');
+    assert.equal(await ev('!sector09Game.sound.muted && sector09Game.sound.musicTimer!==null && document.querySelector(".music-toggle").textContent==="Music on"'),true,'Unmute did not restore BGM/status');
     assert.equal(await ev('(()=>{sector09Game.draw();const p=sector09Game.ctx.getImageData(780,580,1,1).data;return p[0]===237&&p[1]===240&&p[2]===235})()'),true,'Canvas light palette was not rendered');
     const checkPlayLayout=async()=>assert.equal(await ev(`(()=>{const c=document.getElementById('game').getBoundingClientRect(),p=document.getElementById('controls-panel').getBoundingClientRect(),hud=document.querySelector('.status').getBoundingClientRect();return c.x===0&&c.y===0&&c.width===innerWidth&&c.height===innerHeight&&Math.abs(innerWidth-p.right)<=18&&Math.abs(innerHeight-p.bottom)<=16&&hud.top>=0&&hud.right<=innerWidth&&!document.querySelector('header,footer,#states,#log,.workspace')&&document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight})()`),true,'Playfield or overlays do not fit viewport');
     await checkPlayLayout();
@@ -107,6 +115,32 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     await ev('sector09Game.togglePause();window.pickupLives=sector09Game.nodes.map(n=>n.life)');await delay(150);
     assert.equal(await ev('sector09Game.nodes.every((n,i)=>n.life===pickupLives[i])'),true,'Paused pickups expired');
     await ev('sector09Game.togglePause();sector09Game.player.hp=0;sector09Game.update(Sector09.CONFIG.STEP)');assert.equal(await ev('sector09Game.mode==="OVER" && sector09Game.sound.musicTimer!==null'),true,'Game over stopped site music');
+    // A real keyboard play session: inspect targets, then issue input events.
+    // The controller never sets position, score, health, or pickup locations.
+    await ev('document.getElementById("action").click()');
+    const held=new Set();let collected=0,previousScore=0;
+    for(let step=0;step<80&&collected<2;step++){
+      const plan=await ev(`(()=>{const g=sector09Game;if(g.mode!=='RUNNING')return {mode:g.mode,score:g.score};const options=g.nodes.map(n=>{const p=Sector09.findPath(g.player.pos,n,g.walls,g.player.radius);let cost=0,from=g.player.pos;for(const v of p){cost+=from.distance(v);from=v;}return {p,cost:p.length?cost:Infinity}}).sort((a,b)=>a.cost-b.cost);const point=options[0].p[0],d=point?point.sub(g.player.pos).normalized():{x:0,y:0};return {mode:g.mode,score:g.score,keys:[...(d.x>.38?['d']:d.x<-.38?['a']:[]),...(d.y>.38?['s']:d.y<-.38?['w']:[])]}})()`);
+      if(plan.score>previousScore)collected+=(plan.score-previousScore)/10;previousScore=plan.score;
+      if(plan.mode==='OVER'||plan.mode==='WARDEN_INTRO'){await ev('document.getElementById("action").click()');previousScore=plan.mode==='OVER'?0:previousScore;}
+      const desired=new Set(plan.keys||[]);
+      for(const key of held)if(!desired.has(key)){await send('Input.dispatchKeyEvent',{type:'keyUp',key,code:'Key'+key.toUpperCase()});held.delete(key);}
+      for(const key of desired)if(!held.has(key)){await send('Input.dispatchKeyEvent',{type:'keyDown',key,code:'Key'+key.toUpperCase()});held.add(key);}
+      await delay(100);
+    }
+    for(const key of held)await send('Input.dispatchKeyEvent',{type:'keyUp',key,code:'Key'+key.toUpperCase()});
+    assert.ok(collected>=1,'Real keyboard play could not collect a pickup');
+    await send('Input.dispatchKeyEvent',{type:'keyDown',key:'w',code:'KeyW'});
+    await ev('window.dispatchEvent(new Event("blur"));window.blurSnapshot=JSON.stringify([sector09Game.time,sector09Game.player.pos,sector09Game.player.hp,sector09Game.nodes])');await delay(150);
+    assert.equal(await ev('sector09Game.mode==="PAUSED"&&sector09Game.keys.size===0&&blurSnapshot===JSON.stringify([sector09Game.time,sector09Game.player.pos,sector09Game.player.hp,sector09Game.nodes])'),true,'Focus loss did not freeze the run and clear movement');
+    await send('Input.dispatchKeyEvent',{type:'keyUp',key:'w',code:'KeyW'});await ev('document.getElementById("action").click()');
+    const keyboardShot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'keyboard-play-session.png'),Buffer.from(keyboardShot.data,'base64'));
+    const performanceSamples=await ev(`(()=>{const g=sector09Game,results=[];for(const score of [0,100,150]){g.selectedDifficulty='god';g.reset();g.mode='RUNNING';g.wardenIntroSeen=true;while(g.score<score)g.collect();g.player.invulnerable=20;g.showOverlay();const samples=[];for(let i=0;i<120;i++){const t=performance.now();g.update(Sector09.CONFIG.STEP);g.update(Sector09.CONFIG.STEP);g.draw();samples.push(performance.now()-t)}samples.sort((a,b)=>a-b);results.push({score,units:g.enemies.length,p95Ms:samples[114],maxMs:samples[119]})}g.togglePause();return results})()`);
+    for(const scene of performanceSamples)assert.ok(scene.p95Ms<50,'Synthetic frame work exceeds 50 ms: '+JSON.stringify(scene));
+    console.log('PASS: real keyboard pickup collection, modal keyboard focus, browser shortcuts, audio status; synthetic frame timings '+JSON.stringify(performanceSamples));
+    fs.mkdirSync(path.resolve(__dirname,'../artifacts/qa'),{recursive:true});fs.writeFileSync(path.resolve(__dirname,'../artifacts/qa/browser-performance.json'),JSON.stringify({keyboardPickups:collected,scenes:performanceSamples},null,2));
+    await ev('window.savedDraw=sector09Game.draw;window.pausedDraws=0;sector09Game.draw=function(){pausedDraws++;return savedDraw.call(this)}');await delay(180);
+    assert.ok(await ev('pausedDraws')<=1,'Paused game kept redrawing a static field');await ev('sector09Game.draw=savedDraw');
     assert.equal(runtimeErrors.length,0,'Healthy page runtime exceptions');
     console.log('PASS: all pages, gameplay, saved preferences, audio mixer/previews, browser self-tests.');
     await inject(`localStorage.setItem('sector09.preferences','{broken');`,async()=>{await nav('/pages/settings.html');assert.equal(await ev('SectorPreferences.read().difficulty==="medium" && SectorErrors.snapshot().some(e=>e.code==="PREFERENCES_CORRUPT")'),true);});
@@ -127,7 +161,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     await send('Network.setBlockedURLs',{urls:['*assets/js/ui/menu.js']});
     await nav('/pages/settings.html',false);assert.equal(await ev('SectorErrors.snapshot().some(e=>e.code==="ASSET_LOAD" && e.severity==="fatal")'),true);
     await send('Network.setBlockedURLs',{urls:[]});
-    await nav('/pages/play.html');await ev('sector09Game.draw=function(){throw Error("Injected render failure")};sector09Game.frame(performance.now())');
+    await nav('/pages/play.html');await ev('sector09Game.draw=function(){throw Error("Injected render failure")};sector09Game.lastDrawSignature=null;sector09Game.frame(performance.now())');
     assert.equal(await ev('sector09Game.failed && sector09Game.mode==="ERROR" && !!document.querySelector(".error-fatal") && !sector09Game.sound.siren'),true);
     await nav('/pages/settings.html');await ev('Promise.reject(Error("Injected rejection"));void 0');await delay(100);
     assert.equal(await ev('SectorErrors.snapshot().some(e=>e.code==="UNHANDLED_PROMISE")'),true);
@@ -179,6 +213,8 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       assert.equal(await ev('(()=>{const a=document.getElementById("action").getBoundingClientRect(),t=document.querySelector(".terminal");return a.y>=0&&a.bottom<=innerHeight&&a.x>=0&&a.right<=innerWidth&&t.scrollHeight<=t.clientHeight&&document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight})()'),true,'Phone start controls clipped '+width);
       await ev('sector09Game.mode="RUNNING";sector09Game.score=90;sector09Game.collect()');
       assert.equal(await ev('(()=>{const a=document.getElementById("action").getBoundingClientRect(),t=document.querySelector(".terminal");return sector09Game.mode==="WARDEN_INTRO"&&a.y>=0&&a.bottom<=innerHeight&&t.scrollHeight<=t.clientHeight})()'),true,'Phone Warden intro controls clipped '+width);
+      await ev('document.getElementById("action").click()');await delay(40);
+      assert.equal(await ev(`(()=>{const g=sector09Game,c=g.canvas.getBoundingClientRect(),scale=Math.min(c.width/800,c.height/600),left=c.left+(c.width-800*scale)/2,top=c.top+(c.height-600*scale)/2;const hud=document.querySelector('.status').getBoundingClientRect(),actions=document.querySelector('.game-actions').getBoundingClientRect();if(hud.right>left+1||actions.left<left+800*scale-1)return false;const controls=[...document.querySelectorAll('.status,.game-actions,.music-toggle,#joystick,.touch-actions')].filter(e=>e.getClientRects().length).map(e=>e.getBoundingClientRect());for(let i=0;i<40;i++){g.updateNodes(15);for(const n of g.nodes){const x=left+n.x*scale,y=top+n.y*scale;if(controls.some(r=>x+18*scale>r.left&&x-18*scale<r.right&&y+18*scale>r.top&&y-18*scale<r.bottom))return false}}return true})()`),true,'Phone controls obscure the arena or pickups '+width);
     }
     console.log('PASS: real touch start/movement/cancel, two-finger pause, sound, resume, rotation and four phone landscape sizes.');
     await send('Browser.close');

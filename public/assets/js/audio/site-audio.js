@@ -16,7 +16,7 @@
   if(Number.isInteger(step)&&step>=0&&step<16)sound.resumeMusicStep=step;
   function paint(){
     const playing=sound.musicTimer!==null;
-    button.textContent=playing?'Music on':sound.settings.music===0||sound.muted?'Music off':'Enable music';
+    button.textContent=playing?'Music on':sound.settings.music===0||sound.settings.master===0||sound.muted?'Music off':'Enable music';
     button.setAttribute('aria-pressed',String(playing));button.setAttribute('aria-label',playing?'Turn background music off':'Enable background music');
   }
   async function start(){
@@ -45,6 +45,7 @@
   document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();else if(activated)start();});
   root.addEventListener('storage',e=>{if(e.key==='sector09.preferences'||e.key===null)sync();});
   root.SectorAudio={sound,start,stop,sync};
+  sound.onChange=paint;
   paint();
   // Try to resume on later pages. If browser policy suspends the context, the
   // next real interaction resolves it; no autoplay promise is treated as fatal.

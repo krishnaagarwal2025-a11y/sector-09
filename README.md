@@ -10,6 +10,8 @@ A zero-dependency HTML5 Canvas tactical stealth game. Collect brass data nodes, 
 Escape/
 ├── public/                         # Only this directory is deployed
 │   ├── index.html                  # Centered animated home menu
+│   ├── robots.txt                  # Crawler access and sitemap discovery
+│   ├── sitemap.xml                 # Canonical searchable pages
 │   ├── 404.html                    # Missing-page recovery
 │   ├── pages/
 │   │   ├── play.html
@@ -153,3 +155,7 @@ Run this from the repository root with an authenticated Vercel CLI.
 One fixed arena, single player and keyboard/touch controls. Units collide with walls and arena bounds but may overlap each other. The threat counter continues after the unit cap, with bounded movement speeds. Optional browser APIs can be denied; implemented fallbacks are described above. The visibility graph is optimized for this four-obstacle map, rather than large generated worlds.
 
 
+
+## Google Search
+
+The site publishes a crawler-accessible robots file and sitemap, canonical URLs, search descriptions and factual game structured data. Utility pages are excluded from search results with noindex. Search Console ownership verification and submission require the owner's Google account; see [Google Search setup](docs/google-search.md). These files support discovery but do not guarantee indexing or rankings.

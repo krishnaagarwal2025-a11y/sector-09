@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const publicRoot = path.resolve(__dirname,'../public');
 const redirects = require('../vercel.json').redirects;
-const types = { '.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml' };
+const types = { '.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'application/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.svg':'image/svg+xml','.txt':'text/plain; charset=utf-8','.xml':'application/xml; charset=utf-8' };
 function createServer() {
   return http.createServer(async (req,res) => {
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','no-store');

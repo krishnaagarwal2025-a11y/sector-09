@@ -6,7 +6,7 @@
     if (!errors) throw new Error('Diagnostics module missing');
     const page = document.body.dataset.page;
     if (!['home','play','settings','sound','controls','exit'].includes(page)) throw new Error(`Unknown page: ${page}`);
-    if (!root.SectorPreferences || !root.SectorSoundSystem || !root.SectorTheme) throw new Error('Preferences, theme or audio module missing');
+    if (!root.SectorPreferences || !root.SectorSoundSystem || !root.SectorTheme || !root.SectorAudio) throw new Error('Preferences, theme or audio module missing');
     const required = {
       home:[], settings:['difficulty','fullscreen','motion','theme','saved'], sound:['muted','master','effects','siren','music','saved'],
       controls:[], exit:['close-tab','saved'],

@@ -297,7 +297,7 @@
     constructor(document) {
       this.document = document; this.canvas = document.getElementById('game'); this.ctx = this.canvas.getContext('2d');
       if (!this.ctx) throw new Error('Canvas 2D context unavailable');
-      this.ctx.shadowBlur = 0; this.keys = new Set(); this.sound = new SoundSystem(); this.diagnostics = false;
+      this.ctx.shadowBlur = 0; this.keys = new Set(); this.sound = root.SectorAudio?.sound || new SoundSystem(); this.diagnostics = false;
       this.mode = 'READY'; this.highScore = 0; this.persistedHighScore = 0; this.testResults = []; this.time = 0; this.accumulator = 0; this.lastFrame = null; this.frameMs = 16.67;
       this.preferences = root.SectorPreferences?.read() || { difficulty:'medium',fullscreen:true,motion:true };
       this.motion = this.preferences.motion && !root.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -316,7 +316,7 @@
       this.enemies = Array.from({length:this.difficulty.units}, (_, i) => makeEnemy(i, this.difficulty));
       this.score = 0; this.threat = 1; this.speedMultiplier = 1; this.texts = []; this.time = 0;
       this.events = []; this.accumulator = 0; this.alert = false; this.caughtFlash = 0; this.particles = []; this.trail = []; this.trailClock = 0; this.collectPulse = null;
-      this.sound.setAlert(false);this.sound.setMusic(false); this.node = this.spawnNode(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
+      this.sound.setAlert(false); this.node = this.spawnNode(); this.log(`${this.difficulty.label} / ${this.enemies.length} SECURITY UNITS`);
     }
     bind() {
       const controls = [' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd', 'p', 'escape', 't', 'm', 'r', 'f'];
@@ -364,7 +364,7 @@
         this.keys.clear(); this.document.getElementById('fullscreen').textContent = this.document.fullscreenElement ? 'EXIT FULLSCREEN [F]' : 'FULLSCREEN [F]';
       });
     }
-    start() { if(this.failed) return; const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); this.sound.unlock().then(ready=>{if(ready && this.mode==='RUNNING'){this.sound.cue('start');this.updateAlert();}}); if (initial && this.preferences.fullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
+    start() { if(this.failed) return; const initial = this.mode === 'READY'; this.reset(); this.mode = 'RUNNING'; this.keys.clear(); (root.SectorAudio?root.SectorAudio.start():this.sound.unlock()).then(ready=>{if(ready && this.mode==='RUNNING'){this.sound.cue('start');this.updateAlert();}}); if (initial && this.preferences.fullscreen) this.enterFullscreen(); this.showOverlay(); this.canvas.focus(); this.log('SIMULATION INITIALIZED / RETRIEVE DATA'); this.updateAlert(); this.updateHUD(); }
     async enterFullscreen() {
       if (this.document.fullscreenElement) return;
       try {
@@ -389,7 +389,7 @@
     updateAlert() {
       this.alert = this.mode === 'RUNNING' && this.enemies.some(e => e.canSee(this.player, this.walls));
       this.sound.setAlert(this.alert);
-      this.sound.setMusic(this.mode==='RUNNING'&&!this.failed);
+      this.sound.setMusic(!this.failed&&!this.document.hidden);
       this.document.body.classList.toggle('alert', this.alert);
       const text = this.alert ? 'ALERT / YOU ARE VISIBLE' : 'SECTOR CLEAR';
       const status = this.document.getElementById('alert-status'); if (status.textContent !== text) status.textContent = text;

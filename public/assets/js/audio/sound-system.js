@@ -112,18 +112,18 @@
       const bass=[110,0,110,0,130.81,0,130.81,0,98,0,98,0,82.41,0,98,0];
       const melody=[220,0,329.63,0,261.63,0,220,0,196,0,293.66,0,164.81,0,196,0];
       const delay=Math.max(0,time-this.context.currentTime),i=step%16;
-      if(bass[i])this.tone(bass[i],bass[i],0.32,0.07,'triangle',delay,'music');
-      if(melody[i])this.tone(melody[i],melody[i],0.2,0.035,'sine',delay+0.02,'music');
+      if(bass[i])this.tone(bass[i],bass[i],0.58,0.3,'triangle',delay,'music');
+      if(melody[i])this.tone(melody[i]*2,melody[i]*2,0.45,0.17,'sine',delay+0.02,'music');
     }
     setMusic(active) {
       const enabled=active&&!this.muted&&this.settings.music>0&&this.settings.master>0&&this.context?.state==='running';
       if(!enabled){
-        if(this.musicTimer!==null){root.clearInterval(this.musicTimer);this.musicTimer=null;}
+        if(this.musicTimer!==null){this.resumeMusicStep=this.musicStep%16;root.clearInterval(this.musicTimer);this.musicTimer=null;}
         for(const node of this.musicNodes){try{node.stop(this.context.currentTime+0.025);}catch(_) {}}
         this.musicNodes.clear();return;
       }
       if(this.musicTimer!==null)return;
-      this.musicStep=0;this.nextMusicTime=this.context.currentTime+0.04;
+      this.musicStep=this.resumeMusicStep||0;this.resumeMusicStep=0;this.nextMusicTime=this.context.currentTime+0.04;
       const schedule=()=>{
         if(this.context.state!=='running'){this.setMusic(false);return;}
         try{

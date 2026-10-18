@@ -6,6 +6,7 @@
   const home = document?.currentScript?.src ? new URL('../../../index.html', document.currentScript.src).href : '/';
   let notice = null, fatal = null;
   function stopGame() {
+    try {root.SectorAudio?.stop(true);}catch(_){}
     const game = root.sector09Game;
     if (!game) return;
     game.failed = true; game.mode = 'ERROR'; game.keys?.clear();

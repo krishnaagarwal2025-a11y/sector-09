@@ -33,7 +33,15 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     };
     const inject=async(source,fn)=>{const r=await send('Page.addScriptToEvaluateOnNewDocument',{source});try{await fn();}finally{await send('Page.removeScriptToEvaluateOnNewDocument',{identifier:r.identifier});}};
     await send('Runtime.enable');await send('Page.enable');await send('Network.enable');
-    for(const route of ['/','/pages/settings.html','/pages/sound.html','/pages/controls.html','/pages/exit.html','/pages/play.html'])await nav(route);
+    await nav('/');
+    await ev('document.querySelector(".music-toggle").click()');await delay(150);
+    assert.equal(await ev('SectorAudio.sound.musicTimer!==null && sessionStorage.getItem("sector09.musicActive")==="1"'),true,'Home music did not activate');
+    await ev('document.querySelector(".music-toggle").click()');assert.equal(await ev('SectorAudio.sound.musicTimer===null && SectorPreferences.read().music===0'),true,'Music control did not turn off');
+    await ev('document.querySelector(".music-toggle").click()');await delay(80);assert.equal(await ev('SectorAudio.sound.musicTimer!==null'),true,'Music control did not turn on');
+    for(const route of ['/pages/settings.html','/pages/sound.html','/pages/controls.html','/pages/exit.html','/pages/play.html']){
+      await nav(route);await ev('SectorAudio.start()');
+      assert.equal(await ev('SectorAudio.sound.musicTimer!==null && Number(sessionStorage.getItem("sector09.musicStep"))>0'),true,'Music/phase missing on '+route);
+    }
     await nav('/pages/settings.html');
     await ev(`(()=>{const d=document.getElementById('difficulty');d.value='god';d.dispatchEvent(new Event('change'));const f=document.getElementById('fullscreen');f.checked=false;f.dispatchEvent(new Event('change'));})()`);
     await ev(`(()=>{const e=document.getElementById('theme');e.value='light';e.dispatchEvent(new Event('change'))})()`);
@@ -59,7 +67,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
       }
       return rms;
     })()`);
-    assert.ok(renderedAudio.siren.rms>0.012,'Siren waveform too quiet');for(const type of ['music','spawn','collect'])assert.ok(renderedAudio[type].rms>0.002,type+' produced no audible signal');assert.equal(renderedAudio.muted.rms,0);for(const value of Object.values(renderedAudio))assert.ok(value.peak<0.8,'Audio clipping');
+    assert.ok(renderedAudio.siren.rms>0.012,'Siren waveform too quiet');assert.ok(renderedAudio.music.rms>0.025,'BGM synthesis output still too low');for(const type of ['music','spawn','collect'])assert.ok(renderedAudio[type].rms>0.002,type+' produced no audible signal');assert.equal(renderedAudio.muted.rms,0);for(const value of Object.values(renderedAudio))assert.ok(value.peak<0.8,'Audio clipping');
     console.log('PASS: actual rendered siren/BGM/spawn/effects waveforms, mute silence and peak levels.');
     await ev(`(()=>{const g=sector09Game;g.enemies=[Sector09.makeEnemy(0)];const e=g.enemies[0];e.pos=new Sector09.Vector2D(130,180);g.player.pos=new Sector09.Vector2D(130,240);e.transition('CHASE');g.updateAlert()})()`);
     assert.equal(await ev('sector09Game.alert && !!sector09Game.sound.siren'),true,'Visible player did not trigger siren');
@@ -75,7 +83,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     const screenshots=path.resolve(__dirname,'../artifacts/screenshots');fs.mkdirSync(screenshots,{recursive:true});
     const gameShot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'play-full-viewport.png'),Buffer.from(gameShot.data,'base64'));
     await ev('document.getElementById("pause").click();sector09Game.updateHUD()');assert.equal(await ev('sector09Game.mode==="PAUSED" && document.getElementById("pause").textContent==="Resume [P]"'),true);
-    assert.equal(await ev('sector09Game.sound.musicTimer===null && !sector09Game.sound.siren'),true,'Pause did not stop audio');
+    assert.equal(await ev('sector09Game.sound.musicTimer!==null && !sector09Game.sound.siren && sector09Game.sound===SectorAudio.sound'),true,'Pause stopped site music or duplicated audio');
     await ev('document.getElementById("pause").click()');assert.equal(await ev('sector09Game.mode==="RUNNING"'),true);
     await delay(50);assert.equal(await ev('sector09Game.sound.musicTimer!==null'),true,'BGM did not resume');
     await ev('document.querySelector("#controls-panel summary").click()');assert.equal(await ev('!document.getElementById("controls-panel").open'),true);
@@ -83,6 +91,7 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     for(const [width,height] of [[714,715],[390,844]]){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await checkPlayLayout();}
     await send('Emulation.setDeviceMetricsOverride',{width:1100,height:950,deviceScaleFactor:1,mobile:false});
     await ev('sector09Game.collect();sector09Game.togglePause()');assert.equal(await ev('Sector09.runTests(false).every(t=>t.pass)'),true);
+    await ev('sector09Game.player.hp=0;sector09Game.update(Sector09.CONFIG.STEP)');assert.equal(await ev('sector09Game.mode==="OVER" && sector09Game.sound.musicTimer!==null'),true,'Game over stopped site music');
     assert.equal(runtimeErrors.length,0,'Healthy page runtime exceptions');
     console.log('PASS: all pages, gameplay, saved preferences, audio mixer/previews, browser self-tests.');
     await inject(`localStorage.setItem('sector09.preferences','{broken');`,async()=>{await nav('/pages/settings.html');assert.equal(await ev('SectorPreferences.read().difficulty==="medium" && SectorErrors.snapshot().some(e=>e.code==="PREFERENCES_CORRUPT")'),true);});

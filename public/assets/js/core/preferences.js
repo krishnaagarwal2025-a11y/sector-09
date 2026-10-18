@@ -1,7 +1,7 @@
 /* Shared, validated local preferences. The game works when storage is denied. */
 (function (root) {
   'use strict';
-  const defaults = Object.freeze({ difficulty:'medium', fullscreen:true, motion:true, theme:'dark', master:0.85, effects:0.9, siren:0.7, music:1, musicVolumeRevision:1, muted:false });
+  const defaults = Object.freeze({ difficulty:'medium', fullscreen:true, motion:true, theme:'dark', master:0.85, effects:0.9, siren:0.7, music:1, musicVolumeRevision:2, muted:false });
   let memory = { ...defaults }, loaded = false, persistent = true;
   const warn = (code,error,message) => root.SectorErrors?.report(code,error,{message});
   function normalize(value) {

@@ -50,7 +50,7 @@ test('BGM upgrades existing volume to maximum once and preserves later manual ch
   let saved=JSON.stringify({music:0.35,master:0.7,muted:true});
   const storage={getItem:()=>saved,setItem:(_,value)=>{saved=value;}};
   const first=preferences(storage);assert.equal(first.api.read().music,1);assert.equal(first.api.read().master,0.7);assert.equal(first.api.read().muted,true);
-  assert.equal(JSON.parse(saved).musicVolumeRevision,1);
+  assert.equal(JSON.parse(saved).musicVolumeRevision,2);
   first.api.save({music:0.4});assert.equal(preferences(storage).api.read().music,0.4);
 });
 

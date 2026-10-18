@@ -3,45 +3,74 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#16181a">
+  <meta name="theme-color" content="#1e2022">
   <script src="../assets/js/core/errors.js"></script>
-<link rel="stylesheet" href="../assets/css/errors.css">
-<title>SECTOR-09 / StateShift</title>
+  <link rel="stylesheet" href="../assets/css/errors.css">
   <link rel="stylesheet" href="../assets/css/game.css">
+  <title>Play / SECTOR-09</title>
 </head>
 <body data-page="play">
-<main>
-  <header><div><div class="eyebrow">STATESHIFT / TACTICAL SIMULATION</div><h1>SECTOR-09</h1></div><div class="header-actions"><a class="home-link" href="../index.html">HOME</a><div id="alert-status" role="status" aria-live="polite">SECTOR CLEAR</div><button id="fullscreen" type="button">FULLSCREEN [F]</button><div class="designation">AUTONOMOUS SECURITY TESTBED<br>GRID 800 × 600 / REV. 02</div></div></header>
-  <div class="status" aria-label="Simulation telemetry">
-    <div class="metric"><span>SCORE / DATA</span><strong id="score">0000</strong></div>
-    <div class="metric"><span>HIGH SCORE</span><strong id="high-score">0000</strong></div>
-    <div class="metric"><span>INTEGRITY</span><strong id="integrity">3 / 3</strong></div>
-    <div class="metric"><span>MODE / THREAT LEVEL</span><strong id="threat">MEDIUM / 01</strong></div>
-  </div>
-  <div class="workspace">
+  <main class="play-stage" aria-label="SECTOR-09 game">
     <div class="field">
-      <canvas id="game" width="800" height="600" tabindex="0" aria-label="Tactical stealth game. Move with WASD or arrow keys. Collect brass diamonds and avoid security units."></canvas>
-      <div class="field-caption"><span>SECTOR 09 / LIVE FIELD</span><span id="run-status">AWAITING INITIALIZATION</span></div>
-      <div class="overlay" id="overlay"><div class="terminal"><div class="small" id="overlay-tag">SIMULATION / STANDBY</div><h2 id="overlay-title">ENTER THE SECTOR</h2><p id="overlay-copy">Retrieve data. Break line of sight.<br>Keep your integrity intact.</p><div class="rule"></div><div class="mode-picker" id="mode-picker"><label for="difficulty">DIFFICULTY</label><select id="difficulty" aria-describedby="mode-description"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="god">God mode — toughest</option></select><p id="mode-description"></p></div><button id="action" type="button">PRESS [SPACE] TO INITIALIZE</button><button id="change-mode" type="button" hidden>END RUN / CHANGE MODE</button><nav class="overlay-links" aria-label="Game menu"><a href="../index.html">Home</a><a href="settings.html">Settings</a><a href="sound.html">Sound</a><a href="exit.html">Exit</a></nav><p class="small">WASD / ARROWS TO MOVE · P TO PAUSE · T FOR DIAGNOSTICS</p></div></div>
+      <canvas id="game" width="800" height="600" tabindex="0" aria-label="Tactical stealth game. Move with WASD or arrow keys. Collect brass diamonds and avoid guards. Press P to pause."></canvas>
+      <div class="status" aria-label="Simulation telemetry">
+        <div class="metric"><span>SCORE</span><strong id="score">0000</strong></div>
+        <div class="metric"><span>BEST</span><strong id="high-score">0000</strong></div>
+        <div class="metric"><span>INTEGRITY</span><strong id="integrity">3 / 3</strong></div>
+        <div class="metric"><span>MODE / THREAT</span><strong id="threat">MEDIUM / 01</strong></div>
+      </div>
+      <nav class="game-actions" aria-label="Game actions">
+        <a href="../index.html">Home</a>
+        <button id="pause" type="button" disabled>Pause [P]</button>
+        <button id="fullscreen" type="button">Fullscreen [F]</button>
+      </nav>
+      <div id="alert-status" role="status" aria-live="polite">SECTOR CLEAR</div>
+      <div class="field-status" id="run-status">AWAITING INITIALIZATION</div>
+      <details class="controls-panel" id="controls-panel" open>
+        <summary>Controls</summary>
+        <div class="controls-body">
+          <dl>
+            <dt>WASD / arrows</dt><dd>Move</dd>
+            <dt>P / Esc</dt><dd>Pause / resume</dd>
+            <dt>F</dt><dd>Fullscreen</dd>
+            <dt>T</dt><dd>Diagnostics</dd>
+            <dt>M</dt><dd>Mute audio</dd>
+            <dt>R</dt><dd>Replay after loss</dd>
+          </dl>
+          <div id="diagnostic-status">DIAGNOSTICS OFF / AUDIO ON / ISSUES 0</div>
+        </div>
+      </details>
+      <div class="overlay" id="overlay">
+        <div class="terminal">
+          <div class="small" id="overlay-tag">SIMULATION / STANDBY</div>
+          <h1 id="overlay-title">ENTER THE SECTOR</h1>
+          <p id="overlay-copy">Retrieve data. Hide behind cover. Choose your difficulty below.</p>
+          <div class="rule"></div>
+          <div class="mode-picker" id="mode-picker">
+            <label for="difficulty">DIFFICULTY</label>
+            <select id="difficulty" aria-describedby="mode-description">
+              <option value="easy">Easy</option>
+              <option value="medium" selected>Medium</option>
+              <option value="hard">Hard</option>
+              <option value="god">God mode — toughest</option>
+            </select>
+            <p id="mode-description"></p>
+          </div>
+          <button id="action" type="button">PRESS [SPACE] TO INITIALIZE</button>
+          <button id="change-mode" type="button" hidden>END RUN / CHANGE MODE</button>
+          <nav class="overlay-links" aria-label="Game menu">
+            <a href="../index.html">Home</a><a href="settings.html">Settings</a><a href="sound.html">Sound</a><a href="exit.html">Exit</a>
+          </nav>
+          <p class="small">WASD / ARROWS TO MOVE · P TO PAUSE</p>
+        </div>
+      </div>
     </div>
-    <aside>
-      <section><h2>01 / MISSION PARAMETERS</h2><div class="section-body"><p class="objective">Extract data. Stay operational.</p><div class="muted">Each brass node yields 10 points.<br>Concrete blocks interrupt sight.<br>Every 50 points escalates threat.</div></div></section>
-      <section><h2>02 / ACTIVE AI STATES</h2><div class="section-body" id="states"></div></section>
-      <section><h2>03 / OPERATOR CONTROLS</h2><div class="section-body"><dl><dt>WASD / ↑↓←→</dt><dd>Move unit</dd><dt>P / ESC</dt><dd>Pause / resume</dd><dt>F</dt><dd>Fullscreen</dd><dt>T</dt><dd>Diagnostics</dd><dt>M</dt><dd>Toggle all audio</dd><dt>R</dt><dd>Reset after failure</dd></dl><div id="diagnostic-status">DIAGNOSTICS OFF / AUDIO ON</div></div></section>
-      <section><h2>04 / FIELD LOG</h2><div class="section-body"><ol id="log" aria-live="polite"></ol></div></section>
-    </aside>
-  </div>
-  <footer><span>LOCAL SIMULATION / NO NETWORK REQUIRED</span><span>AVOID DETECTION. RETRIEVE. REPEAT.</span></footer>
-</main>
-
-
-<noscript><p>Enable JavaScript to play SECTOR-09 and save preferences.</p></noscript>
-<script data-required src="../assets/js/core/preferences.js"></script>
-<script data-required src="../assets/js/audio/sound-system.js"></script>
-<script data-required src="../assets/js/game/self-tests.js"></script>
-<script data-required src="../assets/js/game/game.js"></script>
-<script data-required src="../assets/js/core/bootstrap.js"></script>
+  </main>
+  <noscript><p class="no-script">Enable JavaScript to play SECTOR-09.</p></noscript>
+  <script data-required src="../assets/js/core/preferences.js"></script>
+  <script data-required src="../assets/js/audio/sound-system.js"></script>
+  <script data-required src="../assets/js/game/self-tests.js"></script>
+  <script data-required src="../assets/js/game/game.js"></script>
+  <script data-required src="../assets/js/core/bootstrap.js"></script>
 </body>
 </html>
-
-

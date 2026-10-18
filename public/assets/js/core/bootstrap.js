@@ -10,7 +10,7 @@
     const required = {
       home:[], settings:['difficulty','fullscreen','motion','saved'], sound:['muted','master','effects','siren','saved'],
       controls:[], exit:['close-tab','saved'],
-      play:['game','overlay','overlay-tag','overlay-title','overlay-copy','mode-picker','difficulty','mode-description','action','change-mode','fullscreen','alert-status','score','high-score','integrity','threat','run-status','states','diagnostic-status','log']
+      play:['game','overlay','overlay-tag','overlay-title','overlay-copy','mode-picker','difficulty','mode-description','action','change-mode','fullscreen','pause','controls-panel','alert-status','score','high-score','integrity','threat','run-status','diagnostic-status']
     }[page];
     for (const id of required) if (!document.getElementById(id)) throw new Error(`Missing page element: ${id}`);
     for (const element of document.querySelectorAll('a[href]')) {

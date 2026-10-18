@@ -63,6 +63,8 @@ Local-file storage policy varies by browser. Use HTTP or the deployed HTTPS site
 
 ## Pages and settings
 
+The play page is a full-viewport canvas, with floating score/health/mode telemetry and compact Home/Pause/Fullscreen actions. Controls sit in a collapsible box at the bottom right and start collapsed on small screens. There is no gameplay header, footer or sidebar. The 800 × 600 world remains fully visible without distortion; extra aspect-ratio space uses the same matte field background. State labels remain on guards, while field events remain in the internal simulation log rather than a separate panel.
+
 Home offers Play, Settings, Sound, Field manual and Exit. Game settings save default difficulty, fullscreen on start and decorative motion preferences. The Sound page provides master/effects/siren volume sliders, mute and audible previews. System reduced-motion preferences are respected. Browser tab closing may require the tab's own close button; Exit explains that fallback.
 
 Settings use `sector09.preferences` in local storage. Denied storage falls back to page-session memory with a visible notice. High scores are saved per mode; God uses `sector09.highScore.god.toughest` so former invincible-practice records do not count. The former single high score remains a Medium fallback.

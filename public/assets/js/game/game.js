@@ -345,6 +345,8 @@
       this.document.addEventListener('visibilitychange', () => { if (this.document.hidden) { this.keys.clear(); if (this.mode === 'RUNNING') this.togglePause(); } });
       this.document.getElementById('action').addEventListener('click', () => this.mode === 'PAUSED' ? this.togglePause() : this.start());
       this.document.getElementById('fullscreen').addEventListener('click', () => this.toggleFullscreen());
+      this.document.getElementById('pause').addEventListener('click', () => this.togglePause());
+      if(root.matchMedia?.('(max-width: 600px)').matches) this.document.getElementById('controls-panel').open=false;
       this.document.getElementById('difficulty').addEventListener('change', event => {
         if (!['READY','OVER'].includes(this.mode) || !DIFFICULTIES[event.target.value]) return;
         this.selectedDifficulty = event.target.value;
@@ -482,12 +484,10 @@
       get('score').textContent = String(this.score).padStart(4, '0'); get('high-score').textContent = String(this.highScore).padStart(4, '0');
       get('integrity').textContent = `${this.player.hp} / 3`; get('threat').textContent = `${this.difficulty.label} / ${String(this.threat).padStart(2, '0')}`;
       get('run-status').textContent = this.mode === 'RUNNING' ? this.alert ? 'ALERT / BREAK LINE OF SIGHT' : 'SIMULATION ACTIVE / UNDETECTED' : this.mode === 'READY' ? 'AWAITING INITIALIZATION' : `SIMULATION ${this.mode === 'OVER' ? 'TERMINATED' : 'PAUSED'}`;
-      // All inserted strings are internal constants; logs use textContent below.
-      get('states').innerHTML = Object.entries(COLORS).map(([s, c]) => `<div class="state-row"><span class="state-name" style="color:${c}">${s}</span><span>${String(this.enemies.filter(e => e.state === s).length).padStart(2, '0')}</span></div>`).join('');
+      get('pause').disabled=!['RUNNING','PAUSED'].includes(this.mode);
+      get('pause').textContent=this.mode==='PAUSED'?'Resume [P]':'Pause [P]';
       const errorCount=root.SectorErrors?.snapshot().length || 0;
       get('diagnostic-status').textContent = `DIAGNOSTICS ${this.diagnostics ? `${this.testResults.filter(t => t.pass).length}/${this.testResults.length} PASS` : 'OFF'} / AUDIO ${this.sound.muted ? 'OFF' : 'ON'} / ISSUES ${errorCount}`;
-      const signature = this.events.join('|');
-      if (signature !== this.renderedLog) { get('log').replaceChildren(...this.events.map(event => { const li = this.document.createElement('li'); li.textContent = event; return li; })); this.renderedLog = signature; }
     }
     draw() {
       const ctx = this.ctx; ctx.clearRect(0, 0, 800, 600); ctx.fillStyle = '#1E2022'; ctx.fillRect(0, 0, 800, 600);

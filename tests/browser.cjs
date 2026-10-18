@@ -40,8 +40,19 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     await ev(`(()=>{const e=document.getElementById('master');e.value=25;e.dispatchEvent(new Event('input'));document.querySelector('[data-preview="collect"]').click();})()`);await delay(150);
     assert.equal(await ev('document.getElementById("saved").textContent.includes("Playing preview")'),true);
     await nav('/pages/play.html');assert.equal(await ev('sector09Game.enemies.length===5 && sector09Game.sound.settings.master===0.25'),true);
+    await send('Emulation.setDeviceMetricsOverride',{width:1191,height:715,deviceScaleFactor:1,mobile:false});
     await ev('document.getElementById("action").click()');await delay(100);
     assert.equal(await ev('sector09Game.mode==="RUNNING" && sector09Game.sound.context.state==="running"'),true);
+    const checkPlayLayout=async()=>assert.equal(await ev(`(()=>{const c=document.getElementById('game').getBoundingClientRect(),p=document.getElementById('controls-panel').getBoundingClientRect(),hud=document.querySelector('.status').getBoundingClientRect();return c.x===0&&c.y===0&&c.width===innerWidth&&c.height===innerHeight&&Math.abs(innerWidth-p.right)<=18&&Math.abs(innerHeight-p.bottom)<=16&&hud.top>=0&&hud.right<=innerWidth&&!document.querySelector('header,footer,#states,#log,.workspace')&&document.documentElement.scrollWidth<=innerWidth&&document.documentElement.scrollHeight<=innerHeight})()`),true,'Playfield or overlays do not fit viewport');
+    await checkPlayLayout();
+    const screenshots=path.resolve(__dirname,'../artifacts/screenshots');fs.mkdirSync(screenshots,{recursive:true});
+    const gameShot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'play-full-viewport.png'),Buffer.from(gameShot.data,'base64'));
+    await ev('document.getElementById("pause").click();sector09Game.updateHUD()');assert.equal(await ev('sector09Game.mode==="PAUSED" && document.getElementById("pause").textContent==="Resume [P]"'),true);
+    await ev('document.getElementById("pause").click()');assert.equal(await ev('sector09Game.mode==="RUNNING"'),true);
+    await ev('document.querySelector("#controls-panel summary").click()');assert.equal(await ev('!document.getElementById("controls-panel").open'),true);
+    await ev('sector09Game.toggleFullscreen()');await checkPlayLayout();await ev('sector09Game.toggleFullscreen()');
+    for(const [width,height] of [[714,715],[390,844]]){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});await checkPlayLayout();}
+    await send('Emulation.setDeviceMetricsOverride',{width:1100,height:950,deviceScaleFactor:1,mobile:false});
     await ev('sector09Game.collect();sector09Game.togglePause()');assert.equal(await ev('Sector09.runTests(false).every(t=>t.pass)'),true);
     assert.equal(runtimeErrors.length,0,'Healthy page runtime exceptions');
     console.log('PASS: all pages, gameplay, saved preferences, audio mixer/previews, browser self-tests.');
@@ -71,7 +82,6 @@ const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
     await nav('/');
     await ev(`SectorPreferences.save({motion:false});document.body.classList.add('reduced-motion')`);
     for(const [width,height] of [[714,715],[390,844]]){await send('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});assert.equal(await ev('document.documentElement.scrollWidth<=innerWidth && document.documentElement.scrollHeight<=innerHeight'),true);}
-    const screenshots=path.resolve(__dirname,'../artifacts/screenshots');fs.mkdirSync(screenshots,{recursive:true});
     const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(screenshots,'home.png'),Buffer.from(shot.data,'base64'));
     console.log('PASS: responsive layout. Screenshot: artifacts/screenshots/home.png');
     await send('Browser.close');

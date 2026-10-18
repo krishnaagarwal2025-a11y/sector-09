@@ -95,7 +95,7 @@
       Object.assign(game, { difficulty:DIFFICULTIES.medium, player:new Player(), walls:makeWalls(), enemies:[makeEnemy(0),makeEnemy(1)], score:0, highScore:0, threat:1, speedMultiplier:1, texts:[], time:0, events:[], sound:{click() {},cue() {}}, saveHighScore() {} });
       for (let i = 0; i < 100; i++) { const p = game.spawnNode(); assert(!game.walls.some(w => w.overlaps(p,18)), 'Spawn in cover'); assert(p.x >= 18 && p.x <= 782 && p.y >= 18 && p.y <= 582, 'Spawn outside arena'); }
       game.node = game.spawnNode(); for (let i = 0; i < 25; i++) game.collect();
-      assert(game.score === 250 && game.threat === 6 && game.enemies.filter(e=>!e.isBoss).length === 5 && game.enemies.filter(e=>e.isBoss).length === 2, 'Escalation/patrol cap/boss milestones failed');
+      assert(game.score === 250 && game.threat === 6 && game.enemies.filter(e=>!e.isBoss).length === 5 && game.enemies.filter(e=>e.isBoss).length === 0, 'Escalation/patrol cap/boss milestones failed');
       assert(Math.abs(game.speedMultiplier - Math.pow(1.08,5)) < 1e-8, 'Speed scaling failed');
     });
     test('Mode resets apply guard counts, settings and independent records', () => {

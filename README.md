@@ -108,7 +108,7 @@ Loss of focus pauses automatically and clears held input. Pause offers mode swit
 | Hard | 3 | 77.5 px/s | 190 / 245 px | 0.75 s | 0.9 s | +12% |
 | God | 5 | 89.9 px/s | 220 / 280 px | 0.55 s | 0.55 s | +15% |
 
-All modes start with three integrity points. God is the toughest mode and is **not invincible**. Brass nodes yield 10 points. Every 50 points increases speed and adds a regular guard up to five. Every 100 points also adds a Warden boss, even after the regular patrol cap. Wardens have larger hulls, double chevrons, labels, a distinct deployment warning and sound. Their chase speed is at least 204 px/s versus the player's 170 px/s, scales with difficulty/threat, and cover still breaks pursuit. Bosses accumulate until the run ends; replay clears them. Three accepted hits end the game with a YOU LOST screen and replay controls. Cover immediately breaks pursuit and silences the visibility alarm.
+All modes start with three integrity points. God is the toughest mode and is **not invincible**. Brass nodes yield 10 points. Every 50 points increases speed and adds a regular guard up to five. At 100, 200, 300 points and onward, one Warden replaces all regular guards for exactly 50 points. At 150, 250, 350 points and onward, the Warden withdraws and normal patrols return at the current threat level, capped at five. Wardens have larger hulls, double chevrons, labels, a distinct deployment warning and sound. Their chase speed is at least 204 px/s versus the player's 170 px/s, scales with difficulty/threat, and cover still breaks pursuit. Wardens patrol the entire arena perimeter and central lanes. Cover still blocks sight; full-map patrol does not grant vision through walls. Three accepted hits end the game with a YOU LOST screen and replay controls. Cover immediately breaks pursuit and silences the visibility alarm.
 
 ## Technical design and diagnostics
 
@@ -123,7 +123,7 @@ npm test
 npm run test:browser
 ```
 
-`npm test` runs 17 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, patrol/boss milestones, boss chase speed and cover behavior, spawn audio triggers/cap, theme/music preferences, asset/link and JavaScript syntax checks, and server/deployment routing checks.
+`npm test` runs 18 top-level checks, including the 17 model regression cases, storage/error/audio fault tests, patrol/boss milestones, boss chase speed and cover behavior, spawn audio triggers/cap, theme/music preferences, asset/link and JavaScript syntax checks, and server/deployment routing checks.
 
 `npm run test:browser` requires an installed Chrome/Chromium browser. Set `CHROME_PATH` if it is not found automatically. It verifies all six pages, saved light theme including Canvas pixels, mixer, gameplay, siren visibility/cover triggers, site-wide BGM/phase restoration, pause/game-over continuity, mute and the music control, and responsive layout, then injects failures to verify recovery. OfflineAudioContext renders actual siren/music/patrol/boss/collection waveforms to assert increased BGM signal, silent mute and bounded peaks; this checks synthesis, not the user's speakers or perceived loudness. It uses a fresh temporary profile; screenshots go to ignored `artifacts/screenshots/`. No test dependencies are installed. Press T in-game to run the same 17 isolated model cases and inspect velocity vectors, LOS, distances, whiskers and frame timing.
 

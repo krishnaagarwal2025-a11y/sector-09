@@ -314,7 +314,7 @@
     [[715,85],[715,270],[420,270],[420,85]], [[85,515],[85,300],[380,300],[380,515]],
     [[350,110],[450,110],[450,480],[350,480]] ];
   function makeEnemy(i, difficulty = DIFFICULTIES.medium) { return new Enemy(i + 1, routes[i].map(([x, y]) => new Vector2D(x, y)), difficulty); }
-  function makeBoss(i, difficulty = DIFFICULTIES.medium) { return new Boss(`boss-${i + 1}`, routes[i % routes.length].map(([x,y]) => new Vector2D(x,y)), difficulty); }
+  function makeBoss(i, difficulty = DIFFICULTIES.medium) { return new Boss(`boss-${i + 1}`, [[85,85],[715,85],[715,515],[85,515],[85,300],[715,300],[715,515],[400,515],[400,85]].map(([x,y]) => new Vector2D(x,y)), difficulty); }
 
   class Game {
     constructor(document) {
@@ -461,6 +461,13 @@
       if (this.highScore <= this.persistedHighScore) return;
       try { root.localStorage.setItem(`sector09.highScore.${this.difficultyKey === 'god' ? 'god.toughest' : this.difficultyKey}`, String(this.highScore)); this.persistedHighScore = this.highScore; } catch (error) { root.SectorErrors?.report('SCORE_WRITE',error,{message:'Your score could not be saved to this browser. It remains available for this page session.'}); }
     }
+    /** Spawn away from the player and other units, starting at that route waypoint. */
+    deploy(enemy) {
+      const clear = enemy.waypoints.filter(p => this.enemies.every(e => p.distance(e.pos) > enemy.radius + e.radius + 12));
+      const waypoint = (clear.length ? clear : enemy.waypoints).reduce((a,b) => a.distance(this.player.pos) > b.distance(this.player.pos) ? a : b);
+      enemy.pos = new Vector2D(waypoint.x,waypoint.y); enemy.waypoint = enemy.waypoints.indexOf(waypoint);
+      this.enemies.push(enemy);
+    }
     collect() {
       this.score += 10; this.highScore = Math.max(this.highScore, this.score); this.saveHighScore();
       this.texts.push(new FloatingText(this.node)); this.sound.click();
@@ -469,23 +476,21 @@
       const nextThreat = 1 + Math.floor(this.score / 50);
       if (nextThreat > this.threat) {
         this.threat = nextThreat; this.speedMultiplier = Math.pow(1 + this.difficulty.escalation, this.threat - 1);
-        const patrolCount = this.enemies.filter(e => !e.isBoss).length;
-        if (patrolCount < CONFIG.MAX_ENEMIES) {
-          const enemy = makeEnemy(patrolCount, this.difficulty);
-          // A new security unit deploys at the safest point on its own route.
-          enemy.pos = enemy.waypoints.reduce((a, b) => a.distance(this.player.pos) > b.distance(this.player.pos) ? a : b);
-          enemy.pos = new Vector2D(enemy.pos.x, enemy.pos.y); this.enemies.push(enemy);
-          this.sound.cue('spawn');
+        if (this.score % 100 === 0) {
+          // A boss phase replaces the entire patrol population for 50 points.
+          this.enemies = [];
+          this.deploy(makeBoss(this.score / 100 - 1, this.difficulty));
+          this.bossNotice = 3; this.sound.cue('boss');
+          this.log('WARDEN DEPLOYED / PATROLS RETURN AT ' + (this.score + 50));
+        } else if (this.enemies.some(e => e.isBoss)) {
+          this.enemies = []; this.bossNotice = 0;
+          const count = Math.min(CONFIG.MAX_ENEMIES, this.difficulty.units + Math.floor(this.score / 50));
+          for (let i = 0; i < count; i++) this.deploy(makeEnemy(i, this.difficulty));
+          this.sound.cue('spawn'); this.log('WARDEN WITHDRAWN / NORMAL PATROLS RESTORED');
+        } else if (this.enemies.length < CONFIG.MAX_ENEMIES) {
+          this.deploy(makeEnemy(this.enemies.length, this.difficulty)); this.sound.cue('spawn');
         }
-        this.log(`THREAT ${String(this.threat).padStart(2, '0')} / SPEED +${Math.round(this.difficulty.escalation * 100)}% / ${this.enemies.length} UNITS`);
-      }
-      if (this.score % 100 === 0) {
-        const boss = makeBoss(this.enemies.filter(e => e.isBoss).length, this.difficulty);
-        const clearWaypoints = boss.waypoints.filter(p => this.enemies.every(e => p.distance(e.pos) > boss.radius + e.radius + 12));
-        const waypoint = (clearWaypoints.length ? clearWaypoints : boss.waypoints).reduce((a,b) => a.distance(this.player.pos) > b.distance(this.player.pos) ? a : b);
-        boss.pos = new Vector2D(waypoint.x,waypoint.y); this.enemies.push(boss);
-        this.bossNotice = 3; this.sound.cue('boss');
-        this.log(`WARDEN DEPLOYED / ${this.score} POINTS / BREAK SIGHT TO ESCAPE`);
+        this.log('THREAT ' + this.threat + ' / ' + this.enemies.length + ' UNITS');
       }
       this.node = this.spawnNode();
     }
@@ -495,8 +500,8 @@
       this.time += dt; this.bossNotice = Math.max(0, (this.bossNotice || 0) - dt); this.caughtFlash = Math.max(0, this.caughtFlash - dt); this.player.update(dt, this.keys, this.walls,this.touchControls?.vector);
       for (const enemy of this.enemies) enemy.update(dt, this);
       if (this.player.hp <= 0) { this.mode = 'OVER'; this.sound.cue('over'); this.keys.clear(); this.updateAlert(); this.saveHighScore(); this.log(`YOU LOST / FINAL SCORE ${this.score}`); this.showOverlay(); return; }
-      this.updateAlert();
       if (circlesTouch(this.player.pos, this.player.radius, this.node, 7)) this.collect();
+      this.updateAlert();
       this.texts.forEach(t => t.update(dt)); this.texts = this.texts.filter(t => t.life > 0);
       this.updateEffects(dt);
     }
@@ -563,7 +568,7 @@
         ctx.strokeStyle = palette().states.CHASE; ctx.strokeRect(210,90,380,54);
         ctx.textAlign = 'center'; ctx.fillStyle = palette().text; ctx.font = 'bold 16px "Segoe UI", Arial, sans-serif';
         ctx.fillText('WARDEN DEPLOYED',400,112); ctx.font = '12px "Segoe UI", Arial, sans-serif';
-        ctx.fillText('Faster than you. Break line of sight.',400,132); ctx.restore();
+        ctx.fillText('Solo boss phase / patrols return at ' + (Math.floor(this.score / 100) * 100 + 50),400,132); ctx.restore();
       }
       if (this.diagnostics) this.drawDiagnostics(ctx);
     }

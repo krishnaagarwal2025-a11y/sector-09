@@ -32,16 +32,34 @@ test('A fatal frame error silences alert audio, clears input and stops schedulin
   Object.assign(game,{mode:'PAUSED',keys:new Set(['w']),sound:{setAlert(){silenced++;},setMusic(){}},draw(){throw Error('Render failure')}});
   game.frame(20);game.frame(21);assert.equal(game.failed,true);assert.equal(game.mode,'ERROR');assert.equal(game.keys.size,0);assert.equal(frames,0);assert.equal(silenced,1);assert.equal(reports[0][0],'GAME_LOOP');
 });
-test('Patrol deployment cue plays for each new guard and stops at the unit cap',()=>{
-  const api=require('../public/assets/js/game/game.js'),game=Object.create(api.Game.prototype);let spawns=0,bosses=0;
-  Object.assign(game,{difficulty:api.DIFFICULTIES.medium,player:new api.Player(),walls:api.makeWalls(),enemies:[api.makeEnemy(0),api.makeEnemy(1)],score:0,highScore:0,threat:1,speedMultiplier:1,texts:[],events:[],time:0,sound:{click(){},cue(type){assert.ok(['spawn','boss'].includes(type));if(type==='spawn')spawns++;else bosses++;}},saveHighScore(){}});
-  game.node=game.spawnNode();for(let i=0;i<4;i++)game.collect();assert.equal(spawns,0);
-  game.collect();assert.equal(spawns,1);assert.equal(game.enemies.length,3);
-  for(let i=0;i<4;i++)game.collect();assert.equal(bosses,0);assert.equal(game.score,90);
-  game.collect();assert.equal(bosses,1);assert.equal(game.bossNotice,3);
-  for(let i=0;i<15;i++)game.collect();assert.equal(spawns,3);assert.equal(bosses,2);assert.equal(game.enemies.filter(e=>!e.isBoss).length,5);
-  for(let i=0;i<5;i++)game.collect();assert.equal(bosses,3,'Boss still deploys after patrol cap');
-  for(const boss of game.enemies.filter(e=>e.isBoss))assert.equal(game.walls.some(w=>w.overlaps(boss.pos,boss.radius)),false);
+test('Warden phases replace all patrols for exactly 50 points in every mode',()=>{
+  const api=require('../public/assets/js/game/game.js');
+  for(const difficulty of Object.values(api.DIFFICULTIES)){
+    const game=Object.create(api.Game.prototype),cues=[];
+    Object.assign(game,{difficulty,player:new api.Player(),walls:api.makeWalls(),enemies:Array.from({length:difficulty.units},(_,i)=>api.makeEnemy(i,difficulty)),score:0,highScore:0,threat:1,speedMultiplier:1,texts:[],events:[],time:0,sound:{click(){},cue(type){cues.push(type);}},saveHighScore(){}});
+    game.node=game.spawnNode();
+    for(let i=1;i<=40;i++){
+      const before=cues.length;game.collect();const score=i*10;
+      const bossPhase=score>=100&&score%100<50;
+      assert.equal(game.enemies.filter(e=>e.isBoss).length,bossPhase?1:0,'Boss at '+score);
+      assert.equal(game.enemies.filter(e=>!e.isBoss).length,bossPhase?0:Math.min(5,difficulty.units+Math.floor(score/50)),'Patrols at '+score);
+      if(score%100===0){assert.deepEqual(cues.slice(before),['boss']);assert.equal(game.bossNotice,3);}
+      else if(score>=150&&score%100===50){assert.deepEqual(cues.slice(before),['spawn']);assert.equal(game.bossNotice,0);}
+      else if(score%50!==0)assert.equal(cues.length,before);
+      for(const enemy of game.enemies){assert.equal(game.walls.some(w=>w.overlaps(enemy.pos,enemy.radius)),false);assert.ok(enemy.pos.distance(game.player.pos)>45);}
+    }
+  }
+});
+
+test('Warden patrol completes a whole-arena circuit through perimeter and central lanes',()=>{
+  const api=require('../public/assets/js/game/game.js'),boss=api.makeBoss(0,{...api.DIFFICULTIES.easy,detection:0}),player=new api.Player();
+  player.pos=new api.Vector2D(400,240);const game={player,walls:api.makeWalls(),speedMultiplier:1,onCaught(){}};const visited=new Set();
+  for(let i=0;i<120*120;i++){
+    boss.update(1/120,game);visited.add(boss.waypoint);
+    assert.equal(game.walls.some(w=>w.overlaps(boss.pos,boss.radius-0.01)),false,'Boss clips cover');
+  }
+  assert.equal(visited.size,boss.waypoints.length,'Boss got stuck before completing the arena circuit');
+  for(const [x,y] of [[85,85],[715,85],[715,515],[85,515],[400,515],[400,85]])assert.ok(boss.waypoints.some(p=>p.x===x&&p.y===y));
 });
 
 test('Bosses outrun the player in every mode, respect cover and reset between runs',()=>{

@@ -12,6 +12,8 @@ Open **index.html** in a current desktop browser to enter the home menu, then ch
 
 ## Home menu and pages
 
+The home screen uses a bold centered SECTOR-09 title, the tagline “Stay unseen. Stay alive.”, and five rectangular menu buttons. Title, tagline and buttons have short staggered intro animations. The home page has no header, footer or diagram. System and saved reduced-motion settings disable these animations. The centered layout was checked at 714 × 715, 1440 × 1000 and 390 × 844 without overflow; all five destinations remain accessible.
+
 | Page | Purpose |
 | --- | --- |
 | `index.html` | Home menu: Play, Settings, Sound, Field manual, Exit |
